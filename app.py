@@ -15,6 +15,8 @@ RESULTS_DIR = Path("results")
 
 MODEL_COLORS = {
     "ElasticNet": "#00d4aa",
+    "Lasso": "#00a896",
+    "Ridge": "#2e86ab",
     "RandomForest": "#0096c7",
     "XGBoost": "#7b68ee",
     "AltumAge": "#f0ad4e",
@@ -55,7 +57,7 @@ app.layout = html.Div(
             className="topbar",
             children=[
                 html.Div(className="brand", children=[html.Span("DNAme"), html.Span("Clock")]),
-                html.Button("Exporter Rapport LaTeX", id="btn-export", className="btn primary"),
+                html.Button("Exporter Rapport (Meilleur Modèle)", id="btn-export", className="btn primary"),
             ],
         ),
         
@@ -191,6 +193,21 @@ app.layout = html.Div(
                                             className="card table-card",
                                             children=[
                                                 html.H3("Données des échantillons"),
+                                                html.Div(className="table-controls", children=[
+                                                    html.Label("Filtrer par ensemble:"),
+                                                    dcc.RadioItems(
+                                                        id="split-filter",
+                                                        options=[
+                                                            {"label": "Tous", "value": "all"},
+                                                            {"label": "Test uniquement", "value": "test"},
+                                                            {"label": "Entraînement", "value": "non_test"},
+                                                        ],
+                                                        value="all",
+                                                        inline=True,
+                                                        className="radio-filter",
+                                                    ),
+                                                ]),
+                                                html.Div(id="samples-count", className="samples-count"),
                                                 html.Div(id="samples-table-container"),
                                             ],
                                         ),
@@ -571,10 +588,6 @@ def update_charts(model_name):
     )
 
 
-@app.callback(
-    Output("samples-table-container", "children"),
-    Input("model-dropdown", "value"),
-)
 def clean_ethnicity(eth):
     """Regroupe les catégories d'ethnicité rares en 'Inconnu'."""
     if pd.isna(eth):
@@ -585,11 +598,23 @@ def clean_ethnicity(eth):
     return eth_str
 
 
-def update_samples_table(model_name):
+@app.callback(
+    Output("samples-table-container", "children"),
+    Output("samples-count", "children"),
+    Input("model-dropdown", "value"),
+    Input("split-filter", "value"),
+)
+def update_samples_table(model_name, split_filter):
     if annot_data is None or model_name is None:
-        return html.P("Aucune donnée disponible", className="no-data")
+        return html.P("Aucune donnée disponible", className="no-data"), ""
     
     df = annot_data[annot_data["model"] == model_name].copy()
+    
+    # Filtrer par split
+    if split_filter and split_filter != "all":
+        df = df[df["split"] == split_filter]
+    
+    total_count = len(df)
     
     # Add Delta Age
     if "age" in df.columns and "age_pred" in df.columns:
@@ -607,13 +632,19 @@ def update_samples_table(model_name):
     
     # Select columns to display
     cols_map = {
-        "Sample_Name": "Échantillon",
+        "Sample_description": "Échantillon",
+        "Sample_Name": "Nom",
         "sexe": "Sexe", 
         "age": "Âge chrono",
         "age_pred": "Âge prédit",
         "delta_age": "Delta Age",
         "ethnicity": "Ethnicité",
+        "split": "Ensemble",
     }
+    
+    # Si Sample_description n'est pas une colonne mais l'index
+    if "Sample_description" not in df.columns and df.index.name == "Sample_description":
+        df = df.reset_index()
     
     cols_to_show = [c for c in cols_map.keys() if c in df.columns]
     df_display = df[cols_to_show].copy()
@@ -623,7 +654,13 @@ def update_samples_table(model_name):
     for col in df_display.select_dtypes(include=[np.number]).columns:
         df_display[col] = df_display[col].round(2)
     
-    return html.Div(
+    # Trier par âge chronologique
+    if "Âge chrono" in df_display.columns:
+        df_display = df_display.sort_values("Âge chrono")
+    
+    count_text = f"{total_count} échantillons affichés"
+    
+    table = html.Div(
         className="table-wrapper",
         children=[
             html.Table(
@@ -645,20 +682,25 @@ def update_samples_table(model_name):
             ),
         ],
     )
+    
+    return table, count_text
 
 
 @app.callback(
     Output("download-csv", "data"),
     Input("btn-export", "n_clicks"),
-    Input("model-dropdown", "value"),
     prevent_initial_call=True,
 )
-def export_report(n_clicks, model_name):
+def export_report(n_clicks):
     from dash import ctx
     if ctx.triggered_id != "btn-export" or not n_clicks:
         return None
-    if metrics_data is None or model_name is None:
+    if metrics_data is None:
         return None
+    
+    # Utilise automatiquement le meilleur modèle (MAE minimum)
+    best_model_name = metrics_data.loc[metrics_data["mae"].idxmin(), "model"]
+    model_name = best_model_name
     
     row = metrics_data[metrics_data["model"] == model_name].iloc[0]
     preds_model = preds_data[preds_data["model"] == model_name]

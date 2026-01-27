@@ -6,12 +6,12 @@ des hyperparamètres pour prédire l'âge chronologique à partir des profils
 de méthylation de l'ADN (données EPICv2).
 
 Modèles implémentés:
-- ElasticNet (régression linéaire régularisée)
-- Random Forest (bagging)
-- Gradient Boosting (XGBoost, HistGradientBoosting)
-- Bagging Regressor
-- Support Vector Regression
-- Multi-Layer Perceptron (AltumAge-inspired)
+- ElasticNet (régression linéaire avec régularisation L1+L2)
+- Lasso (régression linéaire avec régularisation L1)
+- Ridge (régression linéaire avec régularisation L2)
+- Random Forest (ensemble d'arbres de décision)
+- XGBoost (gradient boosting)
+- AltumAge (réseau de neurones MLP)
 
 Auteur: DNAm Age Prediction Benchmark
 """
@@ -26,17 +26,10 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sklearn.ensemble import (
-    BaggingRegressor,
-    GradientBoostingRegressor,
-    HistGradientBoostingRegressor,
-    RandomForestRegressor,
-    StackingRegressor,
-    VotingRegressor,
-)
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import KNNImputer
 from sklearn.inspection import permutation_importance
-from sklearn.linear_model import ElasticNet, Ridge, BayesianRidge
+from sklearn.linear_model import ElasticNet, Ridge, Lasso
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 from sklearn.model_selection import (
     KFold,
@@ -48,7 +41,6 @@ from sklearn.model_selection import (
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVR
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -265,6 +257,9 @@ def get_param_distributions():
             "model__alpha": [0.01, 0.05, 0.1, 0.2, 0.5, 1.0],
             "model__l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9],
         },
+        "Lasso": {
+            "model__alpha": [0.01, 0.05, 0.1, 0.2, 0.5, 1.0],
+        },
         "Ridge": {
             "model__alpha": [0.1, 1.0, 10.0, 100.0, 1000.0],
         },
@@ -275,20 +270,6 @@ def get_param_distributions():
             "min_samples_leaf": [1, 2, 4],
             "max_features": ["sqrt", "log2", 0.5],
         },
-        "GradientBoosting": {
-            "n_estimators": [100, 200, 300],
-            "learning_rate": [0.01, 0.05, 0.1],
-            "max_depth": [3, 5, 7],
-            "subsample": [0.7, 0.8, 0.9, 1.0],
-            "min_samples_split": [2, 5, 10],
-        },
-        "HistGradientBoosting": {
-            "learning_rate": [0.01, 0.05, 0.1],
-            "max_iter": [100, 200, 300],
-            "max_depth": [None, 5, 10, 15],
-            "min_samples_leaf": [10, 20, 30],
-            "l2_regularization": [0.0, 0.1, 1.0],
-        },
         "XGBoost": {
             "n_estimators": [200, 400, 600],
             "learning_rate": [0.01, 0.05, 0.1],
@@ -298,17 +279,7 @@ def get_param_distributions():
             "reg_alpha": [0, 0.1, 1.0],
             "reg_lambda": [1.0, 2.0, 5.0],
         },
-        "Bagging": {
-            "n_estimators": [10, 20, 50],
-            "max_samples": [0.5, 0.7, 1.0],
-            "max_features": [0.5, 0.7, 1.0],
-        },
-        "SVR": {
-            "model__C": [0.1, 1.0, 10.0, 100.0],
-            "model__epsilon": [0.01, 0.1, 0.5],
-            "model__gamma": ["scale", "auto"],
-        },
-        "MLP": {
+        "AltumAge": {
             "model__hidden_layer_sizes": [(64,), (128,), (64, 64), (128, 64), (64, 32, 16)],
             "model__alpha": [0.0001, 0.001, 0.01],
             "model__learning_rate_init": [0.001, 0.01],
@@ -320,11 +291,13 @@ def build_models(optimize: bool = False) -> tuple[list[tuple[str, object]], list
     """
     Construit la liste des modèles à entraîner.
     
-    Inclut:
-    - Modèles linéaires régularisés (ElasticNet, Ridge)
-    - Méthodes d'ensemble (Random Forest, Bagging)
-    - Boosting (Gradient Boosting, XGBoost, HistGradientBoosting)
-    - Deep Learning (MLP)
+    Modèles inclus:
+    - ElasticNet (régularisation L1+L2)
+    - Lasso (régularisation L1)
+    - Ridge (régularisation L2)
+    - Random Forest (ensemble d'arbres)
+    - XGBoost (gradient boosting)
+    - AltumAge (réseau de neurones MLP)
     """
     models: list[tuple[str, object]] = []
     skipped: list[str] = []
@@ -335,6 +308,15 @@ def build_models(optimize: bool = False) -> tuple[list[tuple[str, object]], list
         Pipeline([
             ("scaler", StandardScaler()),
             ("model", ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=50000, tol=1e-4)),
+        ]),
+    ))
+
+    # Lasso - Régression linéaire avec régularisation L1
+    models.append((
+        "Lasso",
+        Pipeline([
+            ("scaler", StandardScaler()),
+            ("model", Lasso(alpha=0.1, max_iter=50000, tol=1e-4)),
         ]),
     ))
 
@@ -361,49 +343,7 @@ def build_models(optimize: bool = False) -> tuple[list[tuple[str, object]], list
         ),
     ))
 
-    # Bagging avec ElasticNet comme estimateur de base
-    models.append((
-        "BaggingElasticNet",
-        BaggingRegressor(
-            estimator=Pipeline([
-                ("scaler", StandardScaler()),
-                ("model", ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=20000)),
-            ]),
-            n_estimators=20,
-            max_samples=0.8,
-            max_features=0.8,
-            n_jobs=-1,
-            random_state=42,
-        ),
-    ))
-
-    # Gradient Boosting (sklearn)
-    models.append((
-        "GradientBoosting",
-        GradientBoostingRegressor(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=5,
-            subsample=0.8,
-            min_samples_split=5,
-            random_state=42,
-        ),
-    ))
-
-    # HistGradientBoosting (plus rapide, gère les NaN)
-    models.append((
-        "HistGradientBoosting",
-        HistGradientBoostingRegressor(
-            learning_rate=0.05,
-            max_iter=200,
-            max_depth=10,
-            min_samples_leaf=20,
-            l2_regularization=0.1,
-            random_state=42,
-        ),
-    ))
-
-    # XGBoost
+    # XGBoost - Gradient Boosting
     try:
         from xgboost import XGBRegressor
         models.append((
@@ -424,13 +364,13 @@ def build_models(optimize: bool = False) -> tuple[list[tuple[str, object]], list
     except ImportError:
         skipped.append("XGBoost")
 
-    # MLP (AltumAge-inspired)
+    # AltumAge - Réseau de neurones (MLP)
     models.append((
         "AltumAge",
         Pipeline([
             ("scaler", StandardScaler()),
             ("model", MLPRegressor(
-                hidden_layer_sizes=(64, 64, 32),
+                hidden_layer_sizes=(128, 64, 32),
                 activation="relu",
                 solver="adam",
                 alpha=0.001,
@@ -897,7 +837,7 @@ def main() -> None:
 
     # Coefficients pour modèles linéaires
     for name, model in trained_models:
-        if name in {"ElasticNet", "Ridge"}:
+        if name in {"ElasticNet", "Lasso", "Ridge"}:
             try:
                 linear_model = model.named_steps["model"]
                 coef = pd.DataFrame({
