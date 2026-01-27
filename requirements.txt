@@ -1,11 +1,22 @@
-numpy
-pandas
-scikit-learn
-matplotlib
-seaborn
-joblib
-plotly
-dash
-xgboost
-pytorch-tabnet
-torch
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+
+# Visualization
+plotly>=5.15.0
+dash>=2.14.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Utilities
+tabulate>=0.9.0
+joblib>=1.3.0
+
+# Optional: Jupyter support
+jupyter>=1.0.0
+ipykernel>=6.25.0
