@@ -11,22 +11,20 @@
 | Test size | 0.2 |
 | Random state | 42 |
 | Optimisation | Non |
-| Temps total | 1329.45 secondes |
+| Temps total | 588.55 secondes |
 
 ## Résultats
 
 ### Classement des Modèles (par MAE)
 
-| model                |    mae |    mad |    r2 |   correlation |   cv_mae |
-|:---------------------|-------:|-------:|------:|--------------:|---------:|
-| Ridge                |  3.399 |  2.761 | 0.961 |         0.982 |    3.376 |
-| ElasticNet           |  3.625 |  3.021 | 0.955 |         0.979 |    3.545 |
-| BaggingElasticNet    |  3.655 |  2.947 | 0.957 |         0.980 |    3.577 |
-| GradientBoosting     |  4.128 |  3.501 | 0.945 |         0.973 |    4.405 |
-| XGBoost              |  4.201 |  3.059 | 0.936 |         0.969 |    4.300 |
-| HistGradientBoosting |  4.259 |  3.738 | 0.942 |         0.972 |    4.275 |
-| RandomForest         |  5.420 |  4.514 | 0.910 |         0.970 |    5.468 |
-| AltumAge             | 13.146 | 11.074 | 0.457 |         0.795 |   13.092 |
+| model        |    mae |   mad |    r2 |   correlation |   cv_mae |
+|:-------------|-------:|------:|------:|--------------:|---------:|
+| Ridge        |  3.399 | 2.761 | 0.961 |         0.982 |    3.376 |
+| ElasticNet   |  3.625 | 3.021 | 0.955 |         0.979 |    3.545 |
+| Lasso        |  3.769 | 2.915 | 0.952 |         0.977 |    4.006 |
+| XGBoost      |  4.201 | 3.059 | 0.936 |         0.969 |    4.300 |
+| RandomForest |  5.420 | 4.514 | 0.910 |         0.970 |    5.468 |
+| AltumAge     | 11.592 | 9.904 | 0.558 |         0.829 |   11.915 |
 
 ### Meilleur Modèle: Ridge
 
@@ -42,12 +40,10 @@
 |--------|-----------|----------|-------|
 | Ridge | 0.01 | 3.40 | 363.73 |
 | ElasticNet | 0.44 | 3.63 | 8.21 |
-| BaggingElasticNet | 1.69 | 3.65 | 2.16 |
-| GradientBoosting | 0.01 | 4.13 | 303.20 |
+| Lasso | 0.76 | 3.77 | 4.98 |
 | XGBoost | 0.01 | 4.20 | 554.54 |
-| HistGradientBoosting | 0.11 | 4.26 | 37.08 |
 | RandomForest | 2.16 | 5.42 | 2.50 |
-| AltumAge | 2.32 | 13.15 | 5.68 |
+| AltumAge | 2.43 | 11.59 | 4.77 |
 
 ## Interprétation
 
