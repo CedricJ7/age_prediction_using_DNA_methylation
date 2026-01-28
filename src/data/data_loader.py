@@ -6,7 +6,7 @@ and CpG site information from CSV files.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 import pandas as pd
 import numpy as np
 
@@ -15,12 +15,12 @@ from ..utils.logging_config import setup_logger
 logger = setup_logger(__name__)
 
 
-def load_annotations(data_dir: Path) -> pd.DataFrame:
+def load_annotations(data_dir: Union[str, Path]) -> pd.DataFrame:
     """
     Load and validate sample annotations.
 
     Args:
-        data_dir: Directory containing the annotation file
+        data_dir: Directory containing the annotation file (str or Path)
 
     Returns:
         DataFrame with sample annotations indexed by Sample_description
@@ -34,6 +34,7 @@ def load_annotations(data_dir: Path) -> pd.DataFrame:
         >>> print(annot.columns)
         Index(['Sample_name', 'female', 'ethnicity', 'age'], dtype='object')
     """
+    data_dir = Path(data_dir)  # Convert to Path if string
     annot_path = data_dir / "annot_projet.csv"
 
     if not annot_path.exists():
@@ -65,12 +66,12 @@ def load_annotations(data_dir: Path) -> pd.DataFrame:
     return annot
 
 
-def load_cpg_names(data_dir: Path) -> list[str]:
+def load_cpg_names(data_dir: Union[str, Path]) -> list[str]:
     """
     Load CpG site names from file.
 
     Args:
-        data_dir: Directory containing CpG names file
+        data_dir: Directory containing CpG names file (str or Path)
 
     Returns:
         List of CpG site names
@@ -83,6 +84,7 @@ def load_cpg_names(data_dir: Path) -> list[str]:
         >>> print(len(cpg_names))
         894353
     """
+    data_dir = Path(data_dir)  # Convert to Path if string
     cpg_path = data_dir / "cpg_names_projet.csv"
 
     if not cpg_path.exists():
@@ -98,7 +100,7 @@ def load_cpg_names(data_dir: Path) -> list[str]:
     return cpg_names
 
 
-def load_clock_cpgs(path: Optional[Path]) -> set[str]:
+def load_clock_cpgs(path: Optional[Union[str, Path]]) -> set[str]:
     """
     Load a predefined list of CpG sites (e.g., Horvath clock).
 
@@ -116,6 +118,7 @@ def load_clock_cpgs(path: Optional[Path]) -> set[str]:
     if path is None:
         return set()
 
+    path = Path(path)  # Convert to Path if string
     if not path.exists():
         logger.warning(f"Clock CpG file not found: {path}")
         return set()
@@ -131,7 +134,7 @@ def load_clock_cpgs(path: Optional[Path]) -> set[str]:
 
 
 def load_selected_cpgs(
-    data_path: Path,
+    data_path: Union[str, Path],
     sample_ids: list[str],
     selected_indices: list[int],
     selected_names: list[str],
@@ -161,6 +164,7 @@ def load_selected_cpgs(
         ...     selected_names=["cg1", "cg2", "cg3"]
         ... )
     """
+    data_path = Path(data_path)  # Convert to Path if string
     if not data_path.exists():
         raise FileNotFoundError(f"Methylation data file not found: {data_path}")
 

@@ -97,7 +97,7 @@ def main():
     logger.info(f"Age range: {y.min():.1f} - {y.max():.1f} years (mean: {y.mean():.1f})")
 
     # Load CpG names
-    cpg_names = load_cpg_names(config.data.data_dir)
+    cpg_names = load_cpg_names(data_dir)
     logger.info(f"Total CpG sites: {len(cpg_names)}")
 
     # =========================================================================
@@ -107,7 +107,7 @@ def main():
     logger.info("PHASE 2: FEATURE SELECTION")
     logger.info("=" * 80)
 
-    data_path = config.data.data_dir / "c_sample.csv"
+    data_path = data_dir / "c_sample.csv"
 
     logger.info(f"Selecting top {config.data.top_k_features} CpG sites...")
     selected_indices, selected_names = select_top_k_cpgs(
