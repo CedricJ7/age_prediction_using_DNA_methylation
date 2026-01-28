@@ -1,0 +1,450 @@
+/**
+ * Accessibility Enhancements (WCAG 2.1 AA Compliance)
+ *
+ * This file adds accessibility improvements to the application.
+ * Import this after the main style.css.
+ */
+
+@import url("design_tokens.css");
+
+/* ============================================================================
+   FOCUS STATES
+   ============================================================================ */
+
+/* Remove default outline and add custom focus styles */
+*:focus {
+    outline: none;
+}
+
+*:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+    box-shadow: 0 0 0 3px var(--primary-alpha-30);
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Dropdown focus */
+.dropdown:focus-visible,
+.Select-control:focus-visible {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-alpha-30);
+}
+
+/* ============================================================================
+   COLOR CONTRAST IMPROVEMENTS
+   ============================================================================ */
+
+/* Ensure minimum 14px font size for body text */
+body {
+    font-size: var(--text-base); /* 14px */
+    line-height: var(--leading-normal); /* 1.5 */
+}
+
+/* Ensure small text is not too small */
+small,
+.text-small {
+    font-size: var(--text-sm); /* 13px minimum */
+}
+
+/* Headings with better contrast */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+    font-weight: var(--font-semibold);
+}
+
+/* Links with adequate contrast */
+a {
+    color: var(--primary-light);
+    text-decoration: underline;
+    text-decoration-skip-ink: auto;
+}
+
+a:hover {
+    color: var(--primary);
+    text-decoration-thickness: 2px;
+}
+
+/* ============================================================================
+   COLOR-BLIND FRIENDLY INDICATORS
+   ============================================================================ */
+
+/* Add icons/text to color-only indicators */
+.cell-positive::before {
+    content: "↑ ";
+    font-weight: var(--font-bold);
+    margin-right: var(--spacing-xs);
+    speak: literal-punctuation; /* Screen reader support */
+}
+
+.cell-negative::before {
+    content: "↓ ";
+    font-weight: var(--font-bold);
+    margin-right: var(--spacing-xs);
+    speak: literal-punctuation;
+}
+
+/* Success/error states */
+.success-indicator::before {
+    content: "✓ ";
+    color: var(--success);
+    font-weight: var(--font-bold);
+}
+
+.error-indicator::before {
+    content: "✗ ";
+    color: var(--danger);
+    font-weight: var(--font-bold);
+}
+
+.warning-indicator::before {
+    content: "⚠ ";
+    color: var(--warning);
+    font-weight: var(--font-bold);
+}
+
+/* ============================================================================
+   KEYBOARD NAVIGATION
+   ============================================================================ */
+
+/* Skip to main content link */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary);
+    color: var(--text-inverse);
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    z-index: var(--z-tooltip);
+}
+
+.skip-link:focus {
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+}
+
+/* Visible keyboard focus on all interactive elements */
+button,
+[role="button"],
+[type="button"],
+[type="submit"] {
+    cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* ============================================================================
+   SCREEN READER SUPPORT
+   ============================================================================ */
+
+/* Screen reader only text */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Allow sr-only content to be focusable */
+.sr-only:focus-visible {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: var(--spacing-sm);
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+}
+
+/* ============================================================================
+   MOBILE RESPONSIVENESS
+   ============================================================================ */
+
+/* Mobile breakpoint: < 768px */
+@media (max-width: 767px) {
+    /* Increase tap target sizes to minimum 44x44px */
+    button,
+    a,
+    input[type="checkbox"],
+    input[type="radio"],
+    select {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Increase font size slightly for readability */
+    body {
+        font-size: var(--text-md); /* 16px on mobile */
+    }
+
+    /* Stack elements vertically */
+    .kpi-row {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    /* Full-width interactive elements */
+    .btn,
+    .dropdown {
+        width: 100%;
+    }
+
+    /* Reduce padding for mobile */
+    .content-shell {
+        padding: var(--spacing-sm);
+    }
+
+    /* Hide sidebar by default, show with toggle */
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 60px;
+        width: 90%;
+        max-width: 340px;
+        height: calc(100vh - 60px);
+        z-index: var(--z-modal);
+        transition: left var(--transition-base);
+        box-shadow: var(--shadow-2xl);
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    /* Overlay when sidebar is open */
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: calc(var(--z-modal) - 1);
+    }
+
+    .sidebar-overlay.visible {
+        display: block;
+    }
+
+    /* Hamburger menu button */
+    .hamburger-menu {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: var(--spacing-sm);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: var(--text-primary);
+    }
+
+    /* Chart containers */
+    .chart-container {
+        height: 300px;
+        min-height: 250px;
+    }
+}
+
+/* Tablet breakpoint: 768px - 1023px */
+@media (min-width: 768px) and (max-width: 1023px) {
+    .content-shell {
+        grid-template-columns: 280px 1fr;
+        gap: var(--spacing-md);
+    }
+
+    .hamburger-menu {
+        display: none;
+    }
+}
+
+/* Desktop breakpoint: >= 1024px */
+@media (min-width: 1024px) {
+    .content-shell {
+        grid-template-columns: 340px 1fr;
+        gap: var(--spacing-lg);
+    }
+
+    .hamburger-menu {
+        display: none;
+    }
+
+    .sidebar {
+        position: static;
+    }
+}
+
+/* ============================================================================
+   REDUCED MOTION
+   ============================================================================ */
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ============================================================================
+   HIGH CONTRAST MODE SUPPORT
+   ============================================================================ */
+
+@media (prefers-contrast: high) {
+    * {
+        border-color: currentColor !important;
+    }
+
+    button,
+    a {
+        outline: 2px solid currentColor;
+        outline-offset: 2px;
+    }
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+    /* Hide non-essential elements */
+    .sidebar,
+    .hamburger-menu,
+    button:not(.print-visible),
+    nav {
+        display: none;
+    }
+
+    /* Ensure readable text */
+    body {
+        color: #000;
+        background: #fff;
+        font-size: 12pt;
+    }
+
+    /* Page breaks */
+    h1, h2, h3 {
+        page-break-after: avoid;
+    }
+
+    table, figure {
+        page-break-inside: avoid;
+    }
+
+    /* Show link URLs */
+    a[href]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+    }
+}
+
+/* ============================================================================
+   LOADING STATES
+   ============================================================================ */
+
+/* Loading spinner */
+.loading-spinner {
+    display: inline-block;
+    width: 3rem;
+    height: 3rem;
+    border: 4px solid var(--border-secondary);
+    border-top-color: var(--primary);
+    border-radius: var(--radius-full);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+}
+
+/* Skeleton loading states */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--bg-secondary) 25%,
+        var(--bg-tertiary) 50%,
+        var(--bg-secondary) 75%
+    );
+    background-size: 200% 100%;
+    animation: loading 1.5s ease-in-out infinite;
+    border-radius: var(--radius-md);
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================================
+   ERROR STATES
+   ============================================================================ */
+
+.error-message {
+    padding: var(--spacing-md);
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-md);
+    color: var(--danger);
+}
+
+.error-message::before {
+    content: "⚠ ";
+    font-weight: var(--font-bold);
+    margin-right: var(--spacing-sm);
+}
+
+/* Empty state */
+.empty-state {
+    padding: var(--spacing-2xl);
+    text-align: center;
+    color: var(--text-tertiary);
+}
+
+.empty-state::before {
+    content: "📊";
+    display: block;
+    font-size: var(--text-4xl);
+    margin-bottom: var(--spacing-md);
+}

@@ -261,7 +261,7 @@ def get_param_distributions():
             "model__alpha": [0.01, 0.05, 0.1, 0.2, 0.5, 1.0],
         },
         "Ridge": {
-            "model__alpha": [0.1, 1.0, 10.0, 100.0, 1000.0],
+            "model__alpha": [50.0, 100.0, 500.0, 1000.0, 5000.0],
         },
         "RandomForest": {
             "n_estimators": [100, 200, 300, 500],
@@ -325,7 +325,7 @@ def build_models(optimize: bool = False) -> tuple[list[tuple[str, object]], list
         "Ridge",
         Pipeline([
             ("scaler", StandardScaler()),
-            ("model", Ridge(alpha=10.0)),
+            ("model", Ridge(alpha=100.0)),
         ]),
     ))
 
@@ -354,8 +354,8 @@ def build_models(optimize: bool = False) -> tuple[list[tuple[str, object]], list
                 max_depth=6,
                 subsample=0.8,
                 colsample_bytree=0.8,
-                reg_alpha=0.1,
-                reg_lambda=2.0,
+                reg_alpha=1.0,
+                reg_lambda=10.0,
                 objective="reg:squarederror",
                 n_jobs=-1,
                 random_state=42,

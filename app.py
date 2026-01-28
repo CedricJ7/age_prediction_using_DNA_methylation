@@ -5,10 +5,20 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 from scipy import stats
 from sklearn.linear_model import LinearRegression
+
+# Import des visualisations révolutionnaires
+from revolutionary_viz import (
+    create_revolutionary_dashboard,
+    create_biological_clock_viz,
+    create_age_acceleration_wave,
+    create_dna_strand_viz,
+    create_wtf_data_art,
+)
 
 
 RESULTS_DIR = Path("results")
@@ -73,12 +83,16 @@ app.layout = html.Div(
                             className="filter-card",
                             children=[
                                 html.Div("Sélection du modèle", className="control-label"),
-                                dcc.Dropdown(
-                                    id="model-dropdown",
-                                    options=model_options,
-                                    value=default_model,
-                                    clearable=False,
-                                    disabled=metrics_data is None,
+                                html.Div(
+                                    dcc.Dropdown(
+                                        id="model-dropdown",
+                                        options=model_options,
+                                        value=default_model,
+                                        clearable=False,
+                                        disabled=metrics_data is None,
+                                    ),
+                                    role="listbox",
+                                    **{"aria-label": "Sélectionner le modèle de prédiction"},
                                 ),
                                 html.Hr(className="sidebar-divider"),
                                 html.Div(className="metrics-legend", children=[
@@ -151,33 +165,66 @@ app.layout = html.Div(
                                             ]),
                                         ]),
                                         html.Div(className="grid", children=[
-                                            html.Div(dcc.Graph(id="chart-mae"), className="card"),
-                                            html.Div(dcc.Graph(id="chart-r2"), className="card"),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-mae"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Graphique MAE par modèle"}),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-r2"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Graphique R² par modèle"}),
                                         ]),
                                         html.Div(className="grid", children=[
-                                            html.Div(dcc.Graph(id="chart-scatter-all"), className="card"),
-                                            html.Div(dcc.Graph(id="chart-scatter-single"), className="card"),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-scatter-all"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Nuage de points tous modèles"}),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-scatter-single"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Régression modèle sélectionné"}),
                                         ]),
                                         
                                         # Métriques individuelles
                                         html.Div(className="section-title", children="Métriques Individuelles"),
                                         html.Div(className="grid", children=[
-                                            html.Div(dcc.Graph(id="chart-delta-age"), className="card"),
-                                            html.Div(dcc.Graph(id="chart-age-accel"), className="card"),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-delta-age"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Delta Age vs Âge chronologique"}),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-age-accel"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Distribution Age Acceleration"}),
                                         ]),
                                         html.Div(className="grid", children=[
-                                            html.Div(dcc.Graph(id="chart-box"), className="card"),
-                                            html.Div(dcc.Graph(id="chart-hist"), className="card"),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-box"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Box plot des erreurs"}),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-hist"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Histogramme Delta Age"}),
                                         ]),
                                         
                                         # Analyses stratifiées
                                         html.Div(className="section-title", children="Analyses Stratifiées"),
                                         html.Div(className="grid", children=[
-                                            html.Div(dcc.Graph(id="chart-nonlin"), className="card"),
-                                            html.Div(dcc.Graph(id="chart-gender"), className="card"),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-nonlin"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Analyse non-linéarité"}),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-gender"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Analyse par genre"}),
                                         ]),
                                         html.Div(className="grid grid-single", children=[
-                                            html.Div(dcc.Graph(id="chart-batch"), className="card"),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-batch"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Variabilité par lot"}),
                                         ]),
                                     ],
                                 ),
@@ -194,21 +241,64 @@ app.layout = html.Div(
                                             children=[
                                                 html.H3("Données des échantillons"),
                                                 html.Div(className="table-controls", children=[
-                                                    html.Label("Filtrer par ensemble:"),
-                                                    dcc.RadioItems(
-                                                        id="split-filter",
-                                                        options=[
-                                                            {"label": "Tous", "value": "all"},
-                                                            {"label": "Test uniquement", "value": "test"},
-                                                            {"label": "Entraînement", "value": "non_test"},
-                                                        ],
-                                                        value="all",
-                                                        inline=True,
-                                                        className="radio-filter",
+                                                    # Search input
+                                                    html.Div(className="search-group", children=[
+                                                        html.Label("Rechercher:", htmlFor="search-sample"),
+                                                        dcc.Input(
+                                                            id="search-sample",
+                                                            type="text",
+                                                            placeholder="ID échantillon...",
+                                                            className="search-input",
+                                                            debounce=True,
+                                                        ),
+                                                    ]),
+                                                    # Age filter
+                                                    html.Div(className="filter-group", children=[
+                                                        html.Label("Tranche d'âge:", htmlFor="filter-age-range"),
+                                                        dcc.Dropdown(
+                                                            id="filter-age-range",
+                                                            options=[
+                                                                {"label": "Tous les âges", "value": "all"},
+                                                                {"label": "< 30 ans", "value": "young"},
+                                                                {"label": "30-60 ans", "value": "middle"},
+                                                                {"label": "> 60 ans", "value": "old"},
+                                                            ],
+                                                            value="all",
+                                                            clearable=False,
+                                                            className="filter-dropdown",
+                                                        ),
+                                                    ]),
+                                                    # Split filter
+                                                    html.Div(className="filter-group", children=[
+                                                        html.Label("Ensemble:"),
+                                                        dcc.RadioItems(
+                                                            id="split-filter",
+                                                            options=[
+                                                                {"label": "Tous", "value": "all"},
+                                                                {"label": "Test", "value": "test"},
+                                                                {"label": "Train", "value": "non_test"},
+                                                            ],
+                                                            value="all",
+                                                            inline=True,
+                                                            className="radio-filter",
+                                                        ),
+                                                    ]),
+                                                ]),
+                                                # Export button
+                                                html.Div(className="export-controls", children=[
+                                                    html.Button(
+                                                        "Exporter CSV",
+                                                        id="btn-export-csv",
+                                                        className="btn secondary",
                                                     ),
                                                 ]),
+                                                dcc.Download(id="download-samples-csv"),
                                                 html.Div(id="samples-count", className="samples-count"),
-                                                html.Div(id="samples-table-container"),
+                                                dcc.Loading(
+                                                    html.Div(id="samples-table-container"),
+                                                    type="circle",
+                                                    color="var(--primary)",
+                                                ),
                                             ],
                                         ),
                                     ],
@@ -273,6 +363,54 @@ app.layout = html.Div(
                                                 html.H4("DeepMAge (2021)"),
                                                 html.P("Deep learning clock"),
                                                 html.A("Aging and Disease", href="https://www.aginganddisease.org/EN/10.14336/AD.2020.1202", target="_blank", className="ref-link"),
+                                            ]),
+                                        ]),
+                                    ],
+                                ),
+                                
+                                # Revolution
+                                dcc.Tab(
+                                    label="Revolution",
+                                    value="tab-revolution",
+                                    className="tab",
+                                    selected_className="tab-selected",
+                                    children=[
+                                        html.Div(className="revolution-container", children=[
+                                            # Sélecteur de visualisation
+                                            html.Div(className="viz-selector", children=[
+                                                html.Div(className="viz-selector-header", children=[
+                                                    html.Span("🚀", className="viz-icon"),
+                                                    html.Span("Visualisation", className="viz-title"),
+                                                ]),
+                                                dcc.RadioItems(
+                                                    id="viz-type-selector",
+                                                    options=[
+                                                        {"label": "🎯 Dashboard Futuriste", "value": "dashboard"},
+                                                        {"label": "⏱️ Horloge Biologique", "value": "clock"},
+                                                        {"label": "🌊 Vagues d'Accélération", "value": "waves"},
+                                                        {"label": "🧬 Double Hélice 3D", "value": "dna"},
+                                                        {"label": "✨ Chronos Fragmenté", "value": "wtf"},
+                                                    ],
+                                                    value="dashboard",
+                                                    className="viz-radio",
+                                                ),
+                                            ]),
+                                            # Container du graphique
+                                            html.Div(className="revolution-graph-container", children=[
+                                                dcc.Graph(
+                                                    id="revolution-graph",
+                                                    config={
+                                                        'displayModeBar': True,
+                                                        'toImageButtonOptions': {
+                                                            'format': 'png',
+                                                            'filename': 'epigenetic_revolution',
+                                                            'height': 800,
+                                                            'width': 1400,
+                                                            'scale': 2
+                                                        },
+                                                    },
+                                                    style={'height': '75vh'},
+                                                ),
                                             ]),
                                         ]),
                                     ],
@@ -603,8 +741,10 @@ def clean_ethnicity(eth):
     Output("samples-count", "children"),
     Input("model-dropdown", "value"),
     Input("split-filter", "value"),
+    Input("search-sample", "value"),
+    Input("filter-age-range", "value"),
 )
-def update_samples_table(model_name, split_filter):
+def update_samples_table(model_name, split_filter, search_term, age_range):
     if annot_data is None or model_name is None:
         return html.P("Aucune donnée disponible", className="no-data"), ""
     
@@ -613,6 +753,21 @@ def update_samples_table(model_name, split_filter):
     # Filtrer par split
     if split_filter and split_filter != "all":
         df = df[df["split"] == split_filter]
+    
+    # Filtrer par recherche
+    if search_term and len(search_term) > 0:
+        search_lower = search_term.lower()
+        if "Sample_description" in df.columns:
+            df = df[df["Sample_description"].str.lower().str.contains(search_lower, na=False)]
+    
+    # Filtrer par tranche d'âge
+    if age_range and age_range != "all" and "age" in df.columns:
+        if age_range == "young":
+            df = df[df["age"] < 30]
+        elif age_range == "middle":
+            df = df[(df["age"] >= 30) & (df["age"] <= 60)]
+        elif age_range == "old":
+            df = df[df["age"] > 60]
     
     total_count = len(df)
     
@@ -684,6 +839,54 @@ def update_samples_table(model_name, split_filter):
     )
     
     return table, count_text
+
+
+@app.callback(
+    Output("download-samples-csv", "data"),
+    Input("btn-export-csv", "n_clicks"),
+    Input("model-dropdown", "value"),
+    Input("split-filter", "value"),
+    Input("search-sample", "value"),
+    Input("filter-age-range", "value"),
+    prevent_initial_call=True,
+)
+def export_samples_csv(n_clicks, model_name, split_filter, search_term, age_range):
+    """Export filtered samples to CSV."""
+    from dash import ctx
+    if ctx.triggered_id != "btn-export-csv" or not n_clicks:
+        return None
+    if annot_data is None or model_name is None:
+        return None
+    
+    df = annot_data[annot_data["model"] == model_name].copy()
+    
+    # Apply same filters as table
+    if split_filter and split_filter != "all":
+        df = df[df["split"] == split_filter]
+    
+    if search_term and len(search_term) > 0:
+        search_lower = search_term.lower()
+        if "Sample_description" in df.columns:
+            df = df[df["Sample_description"].str.lower().str.contains(search_lower, na=False)]
+    
+    if age_range and age_range != "all" and "age" in df.columns:
+        if age_range == "young":
+            df = df[df["age"] < 30]
+        elif age_range == "middle":
+            df = df[(df["age"] >= 30) & (df["age"] <= 60)]
+        elif age_range == "old":
+            df = df[df["age"] > 60]
+    
+    # Add Delta Age
+    if "age" in df.columns and "age_pred" in df.columns:
+        df["delta_age"] = (df["age_pred"] - df["age"]).round(2)
+    
+    # Select columns for export
+    export_cols = ["Sample_description", "age", "age_pred", "delta_age", "split"]
+    export_cols = [c for c in export_cols if c in df.columns]
+    df_export = df[export_cols]
+    
+    return dcc.send_data_frame(df_export.to_csv, f"samples_{model_name}.csv", index=False)
 
 
 @app.callback(
@@ -897,6 +1100,236 @@ $$\Delta\text{Age} = """ + f"{z[0]:.4f}" + r""" \times \text{Âge}^2 """ + f"{z[
 """
     
     return dict(content=report, filename=f"rapport_{model_name}.tex")
+
+
+# =============================================================================
+# PUBLICATION QUALITY FIGURE
+# =============================================================================
+
+PUBLICATION_LAYOUT = dict(
+    font=dict(family="Arial, Helvetica, sans-serif", size=14, color="#1a1a1a"),
+    paper_bgcolor="white",
+    plot_bgcolor="white",
+    margin=dict(l=70, r=40, t=50, b=70),
+    xaxis=dict(
+        showgrid=False,
+        showline=True,
+        linewidth=1.5,
+        linecolor="#1a1a1a",
+        tickfont=dict(size=12, color="#1a1a1a"),
+        title_font=dict(size=14, color="#1a1a1a"),
+        ticks="outside",
+        tickwidth=1.5,
+        ticklen=6,
+        tickcolor="#1a1a1a",
+        zeroline=False,
+    ),
+    yaxis=dict(
+        showgrid=False,
+        showline=True,
+        linewidth=1.5,
+        linecolor="#1a1a1a",
+        tickfont=dict(size=12, color="#1a1a1a"),
+        title_font=dict(size=14, color="#1a1a1a"),
+        ticks="outside",
+        tickwidth=1.5,
+        ticklen=6,
+        tickcolor="#1a1a1a",
+        zeroline=False,
+    ),
+    hoverlabel=dict(bgcolor="white", bordercolor="#1a1a1a", font=dict(color="#1a1a1a", size=11)),
+)
+
+
+@app.callback(
+    Output("pub-scatter", "figure"),
+    Output("pub-stats-content", "children"),
+    Input("model-dropdown", "value"),
+)
+def update_publication_figure(model_name):
+    """Génère une figure de qualité publication."""
+    
+    if metrics_data is None or model_name is None:
+        empty = go.Figure()
+        empty.update_layout(**PUBLICATION_LAYOUT)
+        empty.add_annotation(text="Aucune donnée", x=0.5, y=0.5, xref="paper", yref="paper", 
+                            showarrow=False, font=dict(size=16, color="#666"))
+        return empty, html.P("Données non disponibles")
+    
+    preds_model = preds_data[preds_data["model"] == model_name].copy()
+    y_true = preds_model["y_true"].values
+    y_pred = preds_model["y_pred"].values
+    
+    # Statistiques
+    mae = np.mean(np.abs(y_true - y_pred))
+    mad = np.median(np.abs(y_true - y_pred))
+    r2 = 1 - np.sum((y_true - y_pred)**2) / np.sum((y_true - y_true.mean())**2)
+    corr, p_val = stats.pearsonr(y_true, y_pred)
+    rmse = np.sqrt(np.mean((y_true - y_pred)**2))
+    
+    # Régression
+    lr = LinearRegression()
+    lr.fit(y_true.reshape(-1, 1), y_pred)
+    x_line = np.linspace(y_true.min() - 2, y_true.max() + 2, 100)
+    y_line = lr.predict(x_line.reshape(-1, 1))
+    
+    # Limites
+    min_val = min(y_true.min(), y_pred.min()) - 5
+    max_val = max(y_true.max(), y_pred.max()) + 5
+    
+    # Figure
+    fig = go.Figure()
+    
+    # Scatter points - style publication
+    fig.add_trace(go.Scatter(
+        x=y_true,
+        y=y_pred,
+        mode="markers",
+        marker=dict(
+            size=8,
+            color="#0072B2",  # Bleu accessible daltoniens
+            opacity=0.6,
+            line=dict(width=0),
+        ),
+        name="Samples",
+        hovertemplate="<b>Chronological:</b> %{x:.1f} y<br><b>Predicted:</b> %{y:.1f} y<extra></extra>",
+    ))
+    
+    # Ligne identité (diagonale)
+    fig.add_trace(go.Scatter(
+        x=[min_val, max_val],
+        y=[min_val, max_val],
+        mode="lines",
+        line=dict(color="#999999", width=1.5, dash="dash"),
+        name="Identity",
+        hoverinfo="skip",
+    ))
+    
+    # Ligne de régression
+    fig.add_trace(go.Scatter(
+        x=x_line,
+        y=y_line,
+        mode="lines",
+        line=dict(color="#D55E00", width=2),  # Orange accessible
+        name="Regression",
+        hoverinfo="skip",
+    ))
+    
+    # Layout publication
+    fig.update_layout(
+        **PUBLICATION_LAYOUT,
+        xaxis_title="Chronological age (years)",
+        yaxis_title="Predicted age (years)",
+        xaxis_range=[min_val, max_val],
+        yaxis_range=[min_val, max_val],
+        width=600,
+        height=600,
+        showlegend=True,
+        legend=dict(
+            x=0.02,
+            y=0.98,
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#1a1a1a",
+            borderwidth=1,
+            font=dict(size=11),
+        ),
+    )
+    
+    # Annotation statistiques
+    stats_annotation = f"r = {corr:.3f}<br>MAE = {mae:.2f} years<br>R² = {r2:.3f}"
+    fig.add_annotation(
+        x=0.98,
+        y=0.02,
+        xref="paper",
+        yref="paper",
+        text=stats_annotation,
+        showarrow=False,
+        font=dict(family="Arial", size=12, color="#1a1a1a"),
+        align="right",
+        bgcolor="rgba(255,255,255,0.9)",
+        bordercolor="#1a1a1a",
+        borderwidth=1,
+        borderpad=8,
+    )
+    
+    # Annotation n
+    fig.add_annotation(
+        x=0.02,
+        y=0.02,
+        xref="paper",
+        yref="paper",
+        text=f"n = {len(y_true)}",
+        showarrow=False,
+        font=dict(family="Arial", size=11, color="#666666"),
+        align="left",
+    )
+    
+    # Panneau statistiques
+    stats_panel = html.Div(className="pub-stats-grid", children=[
+        html.Div(className="pub-stat-item", children=[
+            html.Span("Pearson r", className="pub-stat-label"),
+            html.Span(f"{corr:.4f}", className="pub-stat-value"),
+        ]),
+        html.Div(className="pub-stat-item", children=[
+            html.Span("MAE", className="pub-stat-label"),
+            html.Span(f"{mae:.2f} years", className="pub-stat-value"),
+        ]),
+        html.Div(className="pub-stat-item", children=[
+            html.Span("MAD", className="pub-stat-label"),
+            html.Span(f"{mad:.2f} years", className="pub-stat-value"),
+        ]),
+        html.Div(className="pub-stat-item", children=[
+            html.Span("RMSE", className="pub-stat-label"),
+            html.Span(f"{rmse:.2f} years", className="pub-stat-value"),
+        ]),
+        html.Div(className="pub-stat-item", children=[
+            html.Span("R²", className="pub-stat-label"),
+            html.Span(f"{r2:.4f}", className="pub-stat-value"),
+        ]),
+        html.Div(className="pub-stat-item", children=[
+            html.Span("p-value", className="pub-stat-label"),
+            html.Span(f"< 0.001" if p_val < 0.001 else f"{p_val:.4f}", className="pub-stat-value"),
+        ]),
+    ])
+    
+    return fig, stats_panel
+
+
+@app.callback(
+    Output("revolution-graph", "figure"),
+    Input("viz-type-selector", "value"),
+)
+def update_revolution_graph(viz_type):
+    """Met à jour le graphique révolutionnaire selon la sélection."""
+    try:
+        if viz_type == "dashboard":
+            return create_revolutionary_dashboard()
+        elif viz_type == "clock":
+            return create_biological_clock_viz()
+        elif viz_type == "waves":
+            return create_age_acceleration_wave()
+        elif viz_type == "dna":
+            return create_dna_strand_viz()
+        elif viz_type == "wtf":
+            return create_wtf_data_art()
+        else:
+            return create_revolutionary_dashboard()
+    except Exception as e:
+        # En cas d'erreur, retourner un graphique vide
+        fig = go.Figure()
+        fig.update_layout(
+            paper_bgcolor='#0a0a0f',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='white'),
+            annotations=[dict(
+                text=f"Erreur: {str(e)}",
+                x=0.5, y=0.5,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=16, color='#ff6b6b')
+            )]
+        )
+        return fig
 
 
 if __name__ == "__main__":
