@@ -378,6 +378,69 @@ app.layout = html.Div(
                                     ],
                                 ),
                                 
+                                # Analyses Cliniques
+                                dcc.Tab(
+                                    label="Analyses Cliniques",
+                                    value="tab-clinical",
+                                    className="tab",
+                                    selected_className="tab-selected",
+                                    children=[
+                                        html.Div(className="clinical-intro", children=[
+                                            html.H2("Analyses de Validation Clinique"),
+                                            html.P("Méthodes standard pour évaluer la fiabilité d'un biomarqueur en contexte médical."),
+                                        ]),
+
+                                        # Bland-Altman
+                                        html.Div(className="section-title", children="Bland-Altman Plot"),
+                                        html.Div(className="clinical-description", children=[
+                                            html.P("Le graphique de Bland-Altman évalue l'accord entre l'âge prédit et l'âge chronologique. "
+                                                   "Les limites d'accord (±1.96σ) indiquent l'intervalle contenant 95% des différences."),
+                                        ]),
+                                        html.Div(className="grid grid-single", children=[
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-bland-altman"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Bland-Altman plot"}),
+                                        ]),
+                                        html.Div(id="bland-altman-stats", className="clinical-stats-panel"),
+
+                                        # Calibration
+                                        html.Div(className="section-title", children="Courbe de Calibration"),
+                                        html.Div(className="clinical-description", children=[
+                                            html.P("La courbe de calibration montre si les prédictions sont systématiquement biaisées "
+                                                   "selon l'âge. Un modèle bien calibré suit la diagonale (ligne pointillée)."),
+                                        ]),
+                                        html.Div(className="grid grid-single", children=[
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-calibration"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Calibration curve"}),
+                                        ]),
+                                        html.Div(id="calibration-stats", className="clinical-stats-panel"),
+
+                                        # Residuals QQ-Plot
+                                        html.Div(className="section-title", children="Q-Q Plot des Résidus"),
+                                        html.Div(className="clinical-description", children=[
+                                            html.P("Le Q-Q plot vérifie si les erreurs de prédiction suivent une distribution normale. "
+                                                   "Des points alignés sur la diagonale indiquent une normalité des résidus."),
+                                        ]),
+                                        html.Div(className="grid", children=[
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-qq-plot"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Q-Q plot"}),
+                                            html.Div(dcc.Loading(
+                                                dcc.Graph(id="chart-residuals-vs-fitted"),
+                                                type="circle", color="var(--primary)"
+                                            ), className="card", role="img", **{"aria-label": "Residuals vs Fitted"}),
+                                        ]),
+
+                                        # Summary Statistics
+                                        html.Div(className="section-title", children="Résumé Statistique"),
+                                        html.Div(id="clinical-summary", className="clinical-summary-grid"),
+                                    ],
+                                ),
+
                                 # Revolution
                                 dcc.Tab(
                                     label="Revolution",
@@ -1142,6 +1205,425 @@ def update_publication_figure(model_name):
     ])
     
     return fig, stats_panel
+
+
+@app.callback(
+    Output("chart-bland-altman", "figure"),
+    Output("chart-calibration", "figure"),
+    Output("chart-qq-plot", "figure"),
+    Output("chart-residuals-vs-fitted", "figure"),
+    Output("bland-altman-stats", "children"),
+    Output("calibration-stats", "children"),
+    Output("clinical-summary", "children"),
+    Input("model-dropdown", "value"),
+)
+def update_clinical_analysis(model_name):
+    """Generate clinical validation plots: Bland-Altman, Calibration, Q-Q, Residuals."""
+
+    empty = go.Figure().update_layout(**CHART_LAYOUT, annotations=[
+        dict(text="Aucune donnée", x=0.5, y=0.5, xref="paper", yref="paper",
+             showarrow=False, font=dict(size=14, color="#64748b"))
+    ])
+    empty_stats = html.P("Données non disponibles", className="no-data")
+
+    if metrics_data is None or model_name is None or preds_data is None:
+        return empty, empty, empty, empty, empty_stats, empty_stats, empty_stats
+
+    preds_model = preds_data[preds_data["model"] == model_name].copy()
+    if len(preds_model) == 0:
+        return empty, empty, empty, empty, empty_stats, empty_stats, empty_stats
+
+    y_true = preds_model["y_true"].values
+    y_pred = preds_model["y_pred"].values
+    color = MODEL_COLORS.get(model_name, "#00d4aa")
+
+    # ==========================================================================
+    # BLAND-ALTMAN PLOT
+    # ==========================================================================
+    mean_vals = (y_true + y_pred) / 2
+    diff_vals = y_pred - y_true  # Predicted - Actual
+
+    mean_diff = np.mean(diff_vals)
+    std_diff = np.std(diff_vals, ddof=1)
+    loa_upper = mean_diff + 1.96 * std_diff  # Upper Limit of Agreement
+    loa_lower = mean_diff - 1.96 * std_diff  # Lower Limit of Agreement
+
+    fig_ba = go.Figure()
+
+    # Scatter points
+    fig_ba.add_trace(go.Scatter(
+        x=mean_vals,
+        y=diff_vals,
+        mode="markers",
+        marker=dict(size=10, color=color, opacity=0.7),
+        name="Échantillons",
+        hovertemplate="<b>Moyenne:</b> %{x:.1f} ans<br><b>Différence:</b> %{y:.2f} ans<extra></extra>",
+    ))
+
+    # Mean bias line
+    fig_ba.add_hline(y=mean_diff, line_dash="solid", line_color="#fbbf24", line_width=2,
+                     annotation_text=f"Biais moyen: {mean_diff:.2f}",
+                     annotation_position="right",
+                     annotation_font_color="#fbbf24")
+
+    # Zero line
+    fig_ba.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.3)", line_width=1)
+
+    # Limits of Agreement
+    fig_ba.add_hline(y=loa_upper, line_dash="dot", line_color="#ef4444", line_width=2,
+                     annotation_text=f"+1.96σ: {loa_upper:.2f}",
+                     annotation_position="right",
+                     annotation_font_color="#ef4444")
+    fig_ba.add_hline(y=loa_lower, line_dash="dot", line_color="#ef4444", line_width=2,
+                     annotation_text=f"-1.96σ: {loa_lower:.2f}",
+                     annotation_position="right",
+                     annotation_font_color="#ef4444")
+
+    # Fill between LOA
+    x_range = [mean_vals.min() - 2, mean_vals.max() + 2]
+    fig_ba.add_trace(go.Scatter(
+        x=x_range + x_range[::-1],
+        y=[loa_upper, loa_upper, loa_lower, loa_lower],
+        fill="toself",
+        fillcolor="rgba(239, 68, 68, 0.1)",
+        line=dict(width=0),
+        showlegend=False,
+        hoverinfo="skip",
+    ))
+
+    fig_ba.update_layout(
+        **CHART_LAYOUT,
+        title=f"Bland-Altman: {model_name}",
+        xaxis_title="Moyenne (Prédit + Chrono) / 2 (années)",
+        yaxis_title="Différence (Prédit - Chrono) (années)",
+        showlegend=False,
+    )
+
+    # Bland-Altman statistics panel
+    n_within_loa = np.sum((diff_vals >= loa_lower) & (diff_vals <= loa_upper))
+    pct_within_loa = 100 * n_within_loa / len(diff_vals)
+
+    ba_stats = html.Div(className="stats-grid", children=[
+        html.Div(className="stat-item", children=[
+            html.Span("Biais moyen", className="stat-label"),
+            html.Span(f"{mean_diff:.2f} ans", className="stat-value"),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("Écart-type", className="stat-label"),
+            html.Span(f"{std_diff:.2f} ans", className="stat-value"),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("LoA supérieure", className="stat-label"),
+            html.Span(f"+{loa_upper:.2f} ans", className="stat-value"),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("LoA inférieure", className="stat-label"),
+            html.Span(f"{loa_lower:.2f} ans", className="stat-value"),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("Dans LoA (95%)", className="stat-label"),
+            html.Span(f"{pct_within_loa:.1f}%", className="stat-value " + ("stat-good" if pct_within_loa >= 95 else "stat-warning")),
+        ]),
+    ])
+
+    # ==========================================================================
+    # CALIBRATION CURVE
+    # ==========================================================================
+    # Bin data by true age deciles
+    n_bins = 10
+
+    # Create bins
+    percentiles = np.percentile(y_true, np.linspace(0, 100, n_bins + 1))
+    bin_indices = np.digitize(y_true, percentiles[1:-1])
+
+    bin_means_true = []
+    bin_means_pred = []
+    bin_stds = []
+    bin_counts = []
+
+    for i in range(n_bins):
+        mask = bin_indices == i
+        if np.sum(mask) > 0:
+            bin_means_true.append(np.mean(y_true[mask]))
+            bin_means_pred.append(np.mean(y_pred[mask]))
+            bin_stds.append(np.std(y_pred[mask] - y_true[mask], ddof=1) if np.sum(mask) > 1 else 0)
+            bin_counts.append(np.sum(mask))
+
+    bin_means_true = np.array(bin_means_true)
+    bin_means_pred = np.array(bin_means_pred)
+    bin_stds = np.array(bin_stds)
+
+    fig_calib = go.Figure()
+
+    # Perfect calibration line
+    min_val = min(y_true.min(), y_pred.min()) - 5
+    max_val = max(y_true.max(), y_pred.max()) + 5
+    fig_calib.add_trace(go.Scatter(
+        x=[min_val, max_val],
+        y=[min_val, max_val],
+        mode="lines",
+        line=dict(dash="dash", color="rgba(255,255,255,0.4)", width=2),
+        name="Calibration parfaite",
+        hoverinfo="skip",
+    ))
+
+    # Calibration points with error bars
+    fig_calib.add_trace(go.Scatter(
+        x=bin_means_true,
+        y=bin_means_pred,
+        mode="markers+lines",
+        marker=dict(size=12, color=color, symbol="circle"),
+        line=dict(color=color, width=2),
+        error_y=dict(type="data", array=bin_stds, visible=True, color=color, thickness=1.5, width=4),
+        name="Calibration observée",
+        hovertemplate="<b>Âge chrono moyen:</b> %{x:.1f}<br><b>Âge prédit moyen:</b> %{y:.1f}<extra></extra>",
+    ))
+
+    # Regression line through calibration points
+    if len(bin_means_true) > 2:
+        lr_calib = LinearRegression()
+        lr_calib.fit(bin_means_true.reshape(-1, 1), bin_means_pred)
+        x_line = np.linspace(bin_means_true.min(), bin_means_true.max(), 100)
+        y_line_calib = lr_calib.predict(x_line.reshape(-1, 1))
+
+        fig_calib.add_trace(go.Scatter(
+            x=x_line,
+            y=y_line_calib,
+            mode="lines",
+            line=dict(color="#fbbf24", width=2, dash="dot"),
+            name=f"Régression (pente={lr_calib.coef_[0]:.3f})",
+            hoverinfo="skip",
+        ))
+
+    fig_calib.update_layout(
+        **CHART_LAYOUT,
+        title=f"Courbe de Calibration: {model_name}",
+        xaxis_title="Âge chronologique moyen (années)",
+        yaxis_title="Âge prédit moyen (années)",
+        xaxis_range=[min_val, max_val],
+        yaxis_range=[min_val, max_val],
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+
+    # Calibration statistics
+    # Calibration slope and intercept
+    lr_full = LinearRegression()
+    lr_full.fit(y_true.reshape(-1, 1), y_pred)
+    calib_slope = lr_full.coef_[0]
+    calib_intercept = lr_full.intercept_
+
+    # Calibration-in-the-large (mean predicted vs mean actual)
+    citl = np.mean(y_pred) - np.mean(y_true)
+
+    calib_stats = html.Div(className="stats-grid", children=[
+        html.Div(className="stat-item", children=[
+            html.Span("Pente calibration", className="stat-label"),
+            html.Span(f"{calib_slope:.3f}", className="stat-value " + ("stat-good" if 0.9 <= calib_slope <= 1.1 else "stat-warning")),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("Intercept", className="stat-label"),
+            html.Span(f"{calib_intercept:.2f} ans", className="stat-value"),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("CITL", className="stat-label"),
+            html.Span(f"{citl:.2f} ans", className="stat-value"),
+        ]),
+        html.Div(className="stat-item", children=[
+            html.Span("Pente idéale", className="stat-label"),
+            html.Span("1.000", className="stat-value stat-muted"),
+        ]),
+    ])
+
+    # ==========================================================================
+    # Q-Q PLOT (Residuals normality)
+    # ==========================================================================
+    residuals = y_pred - y_true
+
+    # Theoretical quantiles (normal distribution)
+    sorted_residuals = np.sort(residuals)
+    n = len(residuals)
+    theoretical_quantiles = stats.norm.ppf((np.arange(1, n + 1) - 0.5) / n)
+
+    fig_qq = go.Figure()
+
+    # Q-Q scatter
+    fig_qq.add_trace(go.Scatter(
+        x=theoretical_quantiles,
+        y=sorted_residuals,
+        mode="markers",
+        marker=dict(size=8, color=color, opacity=0.7),
+        name="Résidus",
+        hovertemplate="<b>Quantile théorique:</b> %{x:.2f}<br><b>Résidu:</b> %{y:.2f}<extra></extra>",
+    ))
+
+    # Reference line (y = x * std + mean)
+    std_res = np.std(residuals)
+    mean_res = np.mean(residuals)
+    qq_line_x = np.array([theoretical_quantiles.min(), theoretical_quantiles.max()])
+    qq_line_y = mean_res + std_res * qq_line_x
+
+    fig_qq.add_trace(go.Scatter(
+        x=qq_line_x,
+        y=qq_line_y,
+        mode="lines",
+        line=dict(dash="dash", color="#ef4444", width=2),
+        name="Distribution normale",
+        hoverinfo="skip",
+    ))
+
+    fig_qq.update_layout(
+        **CHART_LAYOUT,
+        title=f"Q-Q Plot des Résidus: {model_name}",
+        xaxis_title="Quantiles théoriques (normale)",
+        yaxis_title="Quantiles observés (résidus)",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+
+    # ==========================================================================
+    # RESIDUALS VS FITTED
+    # ==========================================================================
+    fig_resid = go.Figure()
+
+    # Scatter
+    fig_resid.add_trace(go.Scatter(
+        x=y_pred,
+        y=residuals,
+        mode="markers",
+        marker=dict(size=8, color=color, opacity=0.6),
+        name="Résidus",
+        hovertemplate="<b>Prédit:</b> %{x:.1f}<br><b>Résidu:</b> %{y:.2f}<extra></extra>",
+    ))
+
+    # Zero line
+    fig_resid.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.4)", line_width=2)
+
+    # LOWESS smoothing (approximation with polynomial)
+    if len(y_pred) > 10:
+        sorted_idx = np.argsort(y_pred)
+        y_pred_sorted = y_pred[sorted_idx]
+        resid_sorted = residuals[sorted_idx]
+
+        # Rolling mean approximation
+        window = max(len(y_pred) // 10, 5)
+        smoothed = np.convolve(resid_sorted, np.ones(window)/window, mode='valid')
+        x_smooth = y_pred_sorted[window//2:-(window//2) or None]
+
+        if len(x_smooth) == len(smoothed):
+            fig_resid.add_trace(go.Scatter(
+                x=x_smooth,
+                y=smoothed,
+                mode="lines",
+                line=dict(color="#fbbf24", width=3),
+                name="Tendance (lissage)",
+            ))
+
+    fig_resid.update_layout(
+        **CHART_LAYOUT,
+        title=f"Résidus vs Valeurs Prédites: {model_name}",
+        xaxis_title="Âge prédit (années)",
+        yaxis_title="Résidus (Prédit - Chrono)",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+
+    # ==========================================================================
+    # CLINICAL SUMMARY
+    # ==========================================================================
+    # Shapiro-Wilk test for normality (sample if too large)
+    if len(residuals) > 5000:
+        sample_res = np.random.choice(residuals, 5000, replace=False)
+    else:
+        sample_res = residuals
+    shapiro_stat, shapiro_p = stats.shapiro(sample_res)
+
+    # Additional metrics
+    mae = np.mean(np.abs(residuals))
+    rmse = np.sqrt(np.mean(residuals**2))
+    mape = 100 * np.mean(np.abs(residuals) / np.maximum(y_true, 1))  # Avoid div by 0
+
+    # Correlation
+    corr, corr_p = stats.pearsonr(y_true, y_pred)
+
+    # ICC (Intraclass Correlation Coefficient) - simplified
+    var_true = np.var(y_true)
+    var_resid = np.var(residuals)
+    icc = var_true / (var_true + var_resid)
+
+    summary = html.Div(className="summary-grid", children=[
+        html.Div(className="summary-section", children=[
+            html.H4("Performance"),
+            html.Div(className="summary-items", children=[
+                html.Div(className="summary-item", children=[
+                    html.Span("MAE", className="summary-label"),
+                    html.Span(f"{mae:.2f} ans", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("RMSE", className="summary-label"),
+                    html.Span(f"{rmse:.2f} ans", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("MAPE", className="summary-label"),
+                    html.Span(f"{mape:.1f}%", className="summary-value"),
+                ]),
+            ]),
+        ]),
+        html.Div(className="summary-section", children=[
+            html.H4("Corrélation"),
+            html.Div(className="summary-items", children=[
+                html.Div(className="summary-item", children=[
+                    html.Span("Pearson r", className="summary-label"),
+                    html.Span(f"{corr:.4f}", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("p-value", className="summary-label"),
+                    html.Span("< 0.001" if corr_p < 0.001 else f"{corr_p:.4f}", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("ICC", className="summary-label"),
+                    html.Span(f"{icc:.4f}", className="summary-value"),
+                ]),
+            ]),
+        ]),
+        html.Div(className="summary-section", children=[
+            html.H4("Normalité résidus"),
+            html.Div(className="summary-items", children=[
+                html.Div(className="summary-item", children=[
+                    html.Span("Shapiro-Wilk W", className="summary-label"),
+                    html.Span(f"{shapiro_stat:.4f}", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("p-value", className="summary-label"),
+                    html.Span(f"{shapiro_p:.4f}" if shapiro_p >= 0.0001 else "< 0.0001",
+                              className="summary-value " + ("stat-good" if shapiro_p > 0.05 else "stat-warning")),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("Interprétation", className="summary-label"),
+                    html.Span("Normal" if shapiro_p > 0.05 else "Non-normal",
+                              className="summary-value " + ("stat-good" if shapiro_p > 0.05 else "stat-warning")),
+                ]),
+            ]),
+        ]),
+        html.Div(className="summary-section", children=[
+            html.H4("Calibration"),
+            html.Div(className="summary-items", children=[
+                html.Div(className="summary-item", children=[
+                    html.Span("Biais moyen", className="summary-label"),
+                    html.Span(f"{mean_diff:+.2f} ans", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("Pente", className="summary-label"),
+                    html.Span(f"{calib_slope:.3f}", className="summary-value"),
+                ]),
+                html.Div(className="summary-item", children=[
+                    html.Span("% dans LoA", className="summary-label"),
+                    html.Span(f"{pct_within_loa:.1f}%", className="summary-value"),
+                ]),
+            ]),
+        ]),
+    ])
+
+    return fig_ba, fig_calib, fig_qq, fig_resid, ba_stats, calib_stats, summary
 
 
 @app.callback(

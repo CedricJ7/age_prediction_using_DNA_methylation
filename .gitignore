@@ -49,3 +49,6 @@ a_tester.txt
 
 # data
 Data/
+# Large model files
+*.joblib
+results/optimization_complete/
