@@ -926,211 +926,28 @@ def export_samples_csv(n_clicks, model_name, split_filter, search_term, age_rang
     prevent_initial_call=True,
 )
 def export_report(n_clicks):
+    """Generate and download comprehensive PhD-level PDF report."""
     from dash import ctx
     if ctx.triggered_id != "btn-export" or not n_clicks:
         return None
     if metrics_data is None:
         return None
-    
-    # Utilise automatiquement le meilleur modèle (MAE minimum)
-    best_model_name = metrics_data.loc[metrics_data["mae"].idxmin(), "model"]
-    model_name = best_model_name
-    
-    row = metrics_data[metrics_data["model"] == model_name].iloc[0]
-    preds_model = preds_data[preds_data["model"] == model_name]
-    
-    y_true = preds_model["y_true"].values
-    y_pred = preds_model["y_pred"].values
-    correlation, _ = stats.pearsonr(y_true, y_pred)
-    mean_diff = np.mean(y_pred - y_true)
-    
-    # Age Acceleration calculation
-    lr = LinearRegression()
-    lr.fit(y_true.reshape(-1, 1), y_pred)
-    y_expected = lr.predict(y_true.reshape(-1, 1))
-    age_accel = y_pred - y_expected
-    
-    # Non-linearity (polynomial fit)
-    delta_age = y_pred - y_true
-    z = np.polyfit(y_true, delta_age, 2)
-    
-    # Gender stats if available
-    gender_section = ""
-    if annot_data is not None and "female" in annot_data.columns:
-        annot_model = annot_data[annot_data["model"] == model_name].copy()
-        annot_model["delta_age"] = annot_model["age_pred"] - annot_model["age"]
-        annot_model["Genre"] = annot_model["female"].apply(
-            lambda x: "Femme" if str(x).lower() == "true" else "Homme"
-        )
-        gender_stats = annot_model.groupby("Genre")["delta_age"].agg(["mean", "std", "count"])
-        gender_section = r"""
-\subsection{Analyse par Genre}
 
-\begin{table}[htbp]
-\centering
-\begin{tabular}{lccc}
-\hline
-\textbf{Genre} & \textbf{Delta Age moyen} & \textbf{Écart-type} & \textbf{N} \\
-\hline
-"""
-        for genre, stats_row in gender_stats.iterrows():
-            gender_section += f"{genre} & {stats_row['mean']:.2f} & {stats_row['std']:.2f} & {int(stats_row['count'])} \\\\\n"
-        gender_section += r"""\hline
-\end{tabular}
-\caption{Statistiques du Delta Age par genre}
-\end{table}
-"""
-    
-    # Build LaTeX report
-    report = r"""\documentclass[11pt,a4paper]{article}
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[french]{babel}
-\usepackage{amsmath,amssymb}
-\usepackage{booktabs}
-\usepackage{geometry}
-\usepackage{hyperref}
-\usepackage{xcolor}
+    try:
+        # Import the comprehensive report generator
+        from generate_comprehensive_report import generate_comprehensive_report
 
-\geometry{margin=2.5cm}
-\definecolor{primary}{RGB}{0,150,136}
-\hypersetup{colorlinks=true,linkcolor=primary,urlcolor=primary}
+        # Generate the PDF report
+        pdf_path = generate_comprehensive_report()
 
-\title{\textbf{Rapport d'Analyse — Horloge Épigénétique}\\
-\large Modèle: """ + model_name + r"""}
-\author{DNAm Age Prediction Benchmark}
-\date{""" + pd.Timestamp.now().strftime("%d %B %Y") + r"""}
+        # Return the PDF file for download
+        return dcc.send_file(pdf_path)
 
-\begin{document}
-\maketitle
-
-\section{Introduction}
-
-La méthylation de l'ADN est une modification épigénétique consistant en l'ajout d'un groupe 
-méthyle (CH\textsubscript{3}) sur les cytosines des dinucléotides CpG. Ces modifications 
-évoluent avec l'âge de manière prévisible, permettant de construire des "horloges épigénétiques" 
-capables de prédire l'âge biologique d'un individu.
-
-Ce rapport présente les performances du modèle \textbf{""" + model_name + r"""} pour la prédiction 
-de l'âge à partir des profils de méthylation.
-
-\section{Métriques de Performance}
-
-\subsection{Métriques au Niveau Cohorte}
-
-\begin{table}[htbp]
-\centering
-\begin{tabular}{lr}
-\hline
-\textbf{Métrique} & \textbf{Valeur} \\
-\hline
-Corrélation (Pearson) & """ + f"{correlation:.4f}" + r""" \\
-Écart moyen (biais) & """ + f"{mean_diff:+.2f}" + r""" années \\
-MAE (Mean Absolute Error) & """ + f"{row['mae']:.2f}" + r""" années \\
-MAD (Median Absolute Deviation) & """ + f"{row['mad']:.2f}" + r""" années \\
-R² (Coefficient de détermination) & """ + f"{row['r2']:.4f}" + r""" \\
-\hline
-\end{tabular}
-\caption{Métriques de performance du modèle """ + model_name + r"""}
-\end{table}
-
-\subsection{Définitions des Métriques}
-
-\begin{itemize}
-    \item \textbf{Corrélation} : Force de la relation linéaire entre âge prédit et âge réel (-1 à 1)
-    \item \textbf{Écart moyen} : Biais systématique du modèle (surestimation si positif)
-    \item \textbf{MAE} : Erreur absolue moyenne en années
-    \item \textbf{MAD} : Médiane des erreurs absolues (robuste aux outliers)
-    \item \textbf{R²} : Proportion de variance expliquée (0 à 1)
-\end{itemize}
-
-\section{Données d'Entraînement}
-
-\begin{table}[htbp]
-\centering
-\begin{tabular}{lr}
-\hline
-\textbf{Paramètre} & \textbf{Valeur} \\
-\hline
-Échantillons d'entraînement & """ + f"{int(row['n_train'])}" + r""" \\
-Échantillons de test & """ + f"{int(row['n_test'])}" + r""" \\
-Nombre de features & """ + f"{int(row['n_features'])}" + r""" \\
-\hline
-\end{tabular}
-\caption{Caractéristiques des données}
-\end{table}
-
-\section{Analyse Individuelle}
-
-\subsection{Delta Age}
-
-Le Delta Age ($\Delta$Age) représente la différence entre l'âge prédit et l'âge chronologique :
-$$\Delta\text{Age} = \text{Âge}_{\text{prédit}} - \text{Âge}_{\text{chronologique}}$$
-
-\begin{table}[htbp]
-\centering
-\begin{tabular}{lr}
-\hline
-\textbf{Statistique} & \textbf{Valeur} \\
-\hline
-Moyenne & """ + f"{np.mean(delta_age):.2f}" + r""" ans \\
-Écart-type & """ + f"{np.std(delta_age):.2f}" + r""" ans \\
-Minimum & """ + f"{np.min(delta_age):.2f}" + r""" ans \\
-Maximum & """ + f"{np.max(delta_age):.2f}" + r""" ans \\
-\hline
-\end{tabular}
-\caption{Distribution du Delta Age}
-\end{table}
-
-\subsection{Age Acceleration}
-
-L'accélération de l'âge est le résidu de la régression âge prédit $\sim$ âge chronologique :
-$$\text{AgeAccel} = \text{Âge}_{\text{prédit}} - (\alpha + \beta \times \text{Âge}_{\text{chronologique}})$$
-
-\begin{itemize}
-    \item Moyenne : """ + f"{np.mean(age_accel):.2f}" + r""" ans
-    \item Écart-type : """ + f"{np.std(age_accel):.2f}" + r""" ans
-\end{itemize}
-
-\section{Analyses Stratifiées}
-
-\subsection{Non-linéarité selon l'Âge}
-
-Régression polynomiale de degré 2 du Delta Age sur l'âge chronologique :
-$$\Delta\text{Age} = """ + f"{z[0]:.4f}" + r""" \times \text{Âge}^2 """ + f"{z[1]:+.4f}" + r""" \times \text{Âge} """ + f"{z[2]:+.2f}" + r"""$$
-
-""" + gender_section + r"""
-
-\section{Comparaison des Modèles}
-
-\begin{table}[htbp]
-\centering
-\begin{tabular}{lcc}
-\hline
-\textbf{Modèle} & \textbf{MAE (ans)} & \textbf{R²} \\
-\hline
-"""
-    for _, m in metrics_data.sort_values("mae").iterrows():
-        marker = r" $\star$" if m['model'] == model_name else ""
-        report += f"{m['model']}{marker} & {m['mae']:.2f} & {m['r2']:.4f} \\\\\n"
-    
-    report += r"""\hline
-\end{tabular}
-\caption{Comparaison des performances ($\star$ = modèle analysé)}
-\end{table}
-
-\section{Références}
-
-\begin{enumerate}
-    \item Horvath, S. (2013). DNA methylation age of human tissues. \textit{Genome Biology}, 14(10), R115.
-    \item Hannum, G., et al. (2013). Genome-wide methylation profiles. \textit{Molecular Cell}, 49(2), 359-367.
-    \item Levine, M. E., et al. (2018). PhenoAge biomarker. \textit{Aging}, 10(4), 573-591.
-\end{enumerate}
-
-\end{document}
-"""
-    
-    return dict(content=report, filename=f"rapport_{model_name}.tex")
+    except Exception as e:
+        print(f"Error generating comprehensive report: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 # =============================================================================
