@@ -79,6 +79,9 @@ def main():
     config.output_dir = args.output_dir
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Convert data_dir to Path for consistency
+    data_dir = Path(config.data.data_dir)
+
     # =========================================================================
     # PHASE 1: DATA LOADING
     # =========================================================================
@@ -87,7 +90,7 @@ def main():
     logger.info("=" * 80)
 
     # Load annotations
-    annot = load_annotations(config.data.data_dir)
+    annot = load_annotations(data_dir)
     logger.info(f"Loaded {len(annot)} samples")
 
     # Extract target variable
