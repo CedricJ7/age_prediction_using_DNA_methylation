@@ -4,8 +4,14 @@ Train age prediction models using modular architecture.
 This is the refactored entry point that uses the new src/ modules.
 """
 
-import argparse
+import sys
 from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+import argparse
 import time
 import pandas as pd
 import numpy as np

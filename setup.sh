@@ -38,6 +38,12 @@ pip install -r requirements.txt
 echo "✓ Dependencies installed"
 echo ""
 
+# Install package in editable mode
+echo "Installing project package in editable mode..."
+pip install -e .
+echo "✓ Project package installed"
+echo ""
+
 # Install development dependencies (optional)
 read -p "Install development dependencies (testing, linting)? (y/n) " -n 1 -r
 echo ""
