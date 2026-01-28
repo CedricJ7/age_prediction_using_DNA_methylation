@@ -23,13 +23,14 @@ from revolutionary_viz import (
 
 RESULTS_DIR = Path("results")
 
+# Enhanced model colors with better contrast
 MODEL_COLORS = {
-    "ElasticNet": "#00d4aa",
-    "Lasso": "#00a896",
-    "Ridge": "#2e86ab",
-    "RandomForest": "#0096c7",
-    "XGBoost": "#7b68ee",
-    "AltumAge": "#f0ad4e",
+    "ElasticNet": "#00ffc8",
+    "Lasso": "#22d3ee",
+    "Ridge": "#60a5fa",
+    "RandomForest": "#a78bfa",
+    "XGBoost": "#f472b6",
+    "AltumAge": "#fbbf24",
 }
 
 
@@ -45,8 +46,13 @@ def load_results():
     return metrics, preds, annot
 
 
-app = Dash(__name__, suppress_callback_exceptions=True)
-app.title = "DNAm Age Prediction Benchmark"
+app = Dash(
+    __name__,
+    suppress_callback_exceptions=True,
+    external_stylesheets=['assets/style-enhanced.css'],
+    external_scripts=['assets/theme-switcher.js']
+)
+app.title = "DNAm Age Prediction • Epigenetic Clock"
 
 metrics_data, preds_data, annot_data = load_results()
 
@@ -66,8 +72,19 @@ app.layout = html.Div(
         html.Header(
             className="topbar",
             children=[
-                html.Div(className="brand", children=[html.Span("DNAme"), html.Span("Clock")]),
-                html.Button("Exporter Rapport (Meilleur Modèle)", id="btn-export", className="btn primary"),
+                html.Div(className="topbar-content", children=[
+                    html.Div(className="logo-section", children=[
+                        html.Span("🧬", className="logo-icon"),
+                        html.Span("DNAm Age Predictor", className="logo-text"),
+                    ]),
+                    html.Div(style={"display": "flex", "gap": "1rem", "alignItems": "center"}, children=[
+                        html.Button("🌙", id="theme-toggle", className="btn secondary", **{
+                            "aria-label": "Toggle dark/light mode",
+                            "title": "Switch theme"
+                        }),
+                        html.Button("📥 Export Report", id="btn-export", className="btn primary"),
+                    ]),
+                ]),
             ],
         ),
         
@@ -126,8 +143,8 @@ app.layout = html.Div(
                         html.Div(
                             className="hero",
                             children=[
-                                html.H1("Horloge Épigénétique"),
-                                html.P("Explorez les performances des modèles de prédiction d'âge basés sur la méthylation de l'ADN."),
+                                html.H1("Epigenetic Clock Analysis", className="hero-title"),
+                                html.P("Explore cutting-edge DNA methylation age prediction models with interactive visualizations and comprehensive metrics.", className="hero-subtitle"),
                             ],
                         ),
                         
@@ -145,24 +162,28 @@ app.layout = html.Div(
                                     selected_className="tab-selected",
                                     children=[
                                         # Métriques cohorte
-                                        html.Div(className="section-title", children="Métriques Cohorte"),
+                                        html.Div(className="section-title", children="📊 Performance Metrics"),
                                         html.Div(className="kpi-row", children=[
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("Corrélation", className="kpi-label"),
+                                                html.Div("📈", className="kpi-icon"),
+                                                html.Div("Correlation", className="kpi-label"),
                                                 html.Div(id="kpi-corr", className="kpi-value"),
-                                            ]),
+                                            ], **{"aria-label": "Correlation coefficient"}),
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("Écart moyen", className="kpi-label"),
+                                                html.Div("⚖️", className="kpi-icon"),
+                                                html.Div("Mean Bias", className="kpi-label"),
                                                 html.Div(id="kpi-mean-diff", className="kpi-value"),
-                                            ]),
+                                            ], **{"aria-label": "Mean prediction bias"}),
                                             html.Div(className="kpi-card", children=[
+                                                html.Div("📏", className="kpi-icon"),
                                                 html.Div("MAE", className="kpi-label"),
                                                 html.Div(id="kpi-mae", className="kpi-value"),
-                                            ]),
+                                            ], **{"aria-label": "Mean absolute error"}),
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("R²", className="kpi-label"),
+                                                html.Div("🎯", className="kpi-icon"),
+                                                html.Div("R² Score", className="kpi-label"),
                                                 html.Div(id="kpi-r2", className="kpi-value"),
-                                            ]),
+                                            ], **{"aria-label": "R-squared score"}),
                                         ]),
                                         html.Div(className="grid", children=[
                                             html.Div(dcc.Loading(
@@ -425,16 +446,38 @@ app.layout = html.Div(
 )
 
 
+# Enhanced chart layout with better styling
 CHART_LAYOUT = dict(
     template="plotly_dark",
     paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Inter, -apple-system, sans-serif", color="#e6edf3", size=12),
-    title_font=dict(size=14, color="#e6edf3"),
-    margin=dict(l=50, r=30, t=45, b=45),
-    xaxis=dict(gridcolor="#30363d", tickfont=dict(color="#8b949e", size=11)),
-    yaxis=dict(gridcolor="#30363d", tickfont=dict(color="#8b949e", size=11)),
-    hoverlabel=dict(bgcolor="#161b22", bordercolor="#30363d", font=dict(color="#e6edf3")),
+    plot_bgcolor="rgba(15, 23, 42, 0.3)",
+    font=dict(family="Inter, -apple-system, sans-serif", color="#cbd5e1", size=13),
+    title_font=dict(size=16, color="#f1f5f9", family="Inter"),
+    margin=dict(l=60, r=40, t=60, b=50),
+    xaxis=dict(
+        gridcolor="rgba(148, 163, 184, 0.1)",
+        gridwidth=1,
+        tickfont=dict(color="#94a3b8", size=12),
+        showline=True,
+        linewidth=1,
+        linecolor="rgba(148, 163, 184, 0.2)",
+        mirror=False
+    ),
+    yaxis=dict(
+        gridcolor="rgba(148, 163, 184, 0.1)",
+        gridwidth=1,
+        tickfont=dict(color="#94a3b8", size=12),
+        showline=True,
+        linewidth=1,
+        linecolor="rgba(148, 163, 184, 0.2)",
+        mirror=False
+    ),
+    hoverlabel=dict(
+        bgcolor="rgba(15, 23, 42, 0.95)",
+        bordercolor="rgba(0, 255, 200, 0.5)",
+        font=dict(color="#f1f5f9", size=13, family="Inter")
+    ),
+    hovermode='closest',
 )
 
 
