@@ -116,14 +116,28 @@ def load_all_cpg_data_chunked(
     chunks = []
     total_sites = 0
 
-    for chunk in pd.read_csv(data_path, chunksize=chunk_size, index_col=0):
-        # Filter to our samples
-        chunk_filtered = chunk.loc[:, sample_ids]
-        chunks.append(chunk_filtered)
-        total_sites += len(chunk_filtered)
+    # First, read header to check if sample_ids are in columns
+    header_df = pd.read_csv(data_path, nrows=1)
 
-        if total_sites % 10000 == 0:
-            logger.info(f"  Loaded {total_sites} CpG sites...")
+    # Check if sample_ids are in columns (expected format)
+    if not all(sid in header_df.columns for sid in sample_ids[:5]):
+        logger.error(f"Sample IDs not found in CSV columns!")
+        logger.error(f"Expected: {sample_ids[:3]}")
+        logger.error(f"Found columns: {list(header_df.columns[:5])}")
+        raise ValueError("Sample IDs mismatch with CSV structure")
+
+    for chunk in pd.read_csv(data_path, chunksize=chunk_size):
+        # Filter to our samples (columns)
+        try:
+            chunk_filtered = chunk[sample_ids]
+            chunks.append(chunk_filtered)
+            total_sites += len(chunk_filtered)
+
+            if total_sites % 10000 == 0:
+                logger.info(f"  Loaded {total_sites} CpG sites...")
+        except KeyError as e:
+            logger.warning(f"Some samples not found in chunk, skipping: {e}")
+            continue
 
     # Concatenate all chunks
     logger.info(f"  Concatenating {len(chunks)} chunks...")
