@@ -37,6 +37,14 @@ class ModelConfig:
     rf_max_depth: int = 20
     mlp_hidden_layers: tuple = (128, 64, 32)
     mlp_alpha: float = 0.001
+    # DeepMAge parameters
+    deepmage_hidden_size: int = 512
+    deepmage_dropout: float = 0.3
+    deepmage_learning_rate: float = 0.001
+    deepmage_batch_size: int = 32
+    deepmage_epochs: int = 100
+    deepmage_early_stopping_patience: int = 10
+    deepmage_random_state: int = 42
 
 
 @dataclass
@@ -114,6 +122,13 @@ class Config:
                 'rf_max_depth': self.models.rf_max_depth,
                 'mlp_hidden_layers': list(self.models.mlp_hidden_layers),
                 'mlp_alpha': self.models.mlp_alpha,
+                'deepmage_hidden_size': self.models.deepmage_hidden_size,
+                'deepmage_dropout': self.models.deepmage_dropout,
+                'deepmage_learning_rate': self.models.deepmage_learning_rate,
+                'deepmage_batch_size': self.models.deepmage_batch_size,
+                'deepmage_epochs': self.models.deepmage_epochs,
+                'deepmage_early_stopping_patience': self.models.deepmage_early_stopping_patience,
+                'deepmage_random_state': self.models.deepmage_random_state,
             },
             'optimization': {
                 'cv_folds': self.optimization.cv_folds,

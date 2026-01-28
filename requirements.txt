@@ -6,6 +6,7 @@ scipy>=1.10.0
 # Machine Learning
 scikit-learn>=1.3.0
 xgboost>=2.0.0
+torch>=2.0.0  # PyTorch for DeepMAge model
 
 # Visualization
 plotly>=5.18.0

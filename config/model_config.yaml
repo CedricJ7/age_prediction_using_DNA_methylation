@@ -22,6 +22,14 @@ models:
   rf_max_depth: 10  # Reduced from 20 to prevent overfitting
   mlp_hidden_layers: [128, 64, 32]
   mlp_alpha: 0.001
+  # DeepMAge parameters (PyTorch-based deep learning)
+  deepmage_hidden_size: 512  # Number of neurons in hidden layer
+  deepmage_dropout: 0.3  # Dropout probability for regularization
+  deepmage_learning_rate: 0.001  # Adam optimizer learning rate
+  deepmage_batch_size: 32  # Batch size for training
+  deepmage_epochs: 100  # Maximum number of epochs
+  deepmage_early_stopping_patience: 10  # Early stopping patience
+  deepmage_random_state: 42  # Random seed
 
 optimization:
   cv_folds: 10

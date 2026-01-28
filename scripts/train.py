@@ -28,6 +28,7 @@ from src.data.imputation import create_knn_imputer
 from src.models.linear_models import create_ridge_model, create_lasso_model, create_elasticnet_model
 from src.models.tree_models import create_random_forest_model, create_xgboost_model
 from src.models.neural_models import create_mlp_model
+from src.models.deep_learning import create_deepmage_model
 from src.models.ensemble import create_stacked_ensemble
 from src.evaluation.metrics import evaluate_model, compare_models
 
@@ -195,6 +196,14 @@ def main():
     except ImportError:
         logger.warning("XGBoost not available, skipping")
 
+    # Add DeepMAge (PyTorch)
+    try:
+        model_definitions.append(
+            ("DeepMAge", lambda: create_deepmage_model(config.models))
+        )
+    except ImportError as e:
+        logger.warning(f"DeepMAge not available (PyTorch required): {e}")
+
     # Train each model
     for name, model_factory in model_definitions:
         logger.info(f"\n{'─' * 80}")
@@ -207,8 +216,8 @@ def main():
             # Create and train model
             model = model_factory()
 
-            # Special handling for XGBoost with early stopping
-            if name == "XGBoost":
+            # Special handling for XGBoost and DeepMAge with early stopping
+            if name in ["XGBoost", "DeepMAge"]:
                 # Split training into train/validation for early stopping
                 from sklearn.model_selection import train_test_split as split_val
                 X_tr, X_val, y_tr, y_val = split_val(
@@ -225,8 +234,9 @@ def main():
                 )
 
                 if hasattr(model, 'best_iteration'):
+                    max_iter = config.models.xgboost_n_estimators if name == "XGBoost" else config.models.deepmage_epochs
                     logger.info(f"Early stopping at iteration {model.best_iteration} "
-                              f"(out of {config.models.xgboost_n_estimators})")
+                              f"(out of {max_iter})")
             else:
                 # Standard fit for other models
                 model.fit(X_train, y_train)

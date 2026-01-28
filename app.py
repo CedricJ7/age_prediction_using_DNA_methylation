@@ -31,6 +31,7 @@ MODEL_COLORS = {
     "RandomForest": "#a78bfa",
     "XGBoost": "#f472b6",
     "AltumAge": "#fbbf24",
+    "DeepMAge": "#fb923c",  # Orange for PyTorch deep learning
 }
 
 
