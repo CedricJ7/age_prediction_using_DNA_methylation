@@ -95,7 +95,7 @@ class ComprehensiveReportPDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.set_text_color(100, 100, 100)
         date_str = datetime.now().strftime('%d/%m/%Y')
-        self.cell(0, 10, f'Généré le {date_str} • Rapport Scientifique', 0, 0, 'C')
+        self.cell(0, 10, f'Généré le {date_str} | Rapport Scientifique', 0, 0, 'C')
 
     def chapter_title_page(self, title):
         """Titre de chapitre."""
@@ -411,7 +411,7 @@ def generate_comprehensive_figures(metrics, preds, annot):
     axes[1,1].axvline(0, color='red', linestyle='--', linewidth=2)
     axes[1,1].set_xlabel('Age Acceleration (années)')
     axes[1,1].set_ylabel('Fréquence')
-    axes[1,1].set_title(f'Age Acceleration (σ={stats_best["age_accel_std"]:.2f})')
+    axes[1,1].set_title(f'Age Acceleration (sigma={stats_best["age_accel_std"]:.2f})')
     axes[1,1].grid(axis='y', alpha=0.3)
 
     plt.tight_layout()
@@ -627,7 +627,7 @@ def generate_comprehensive_report():
     pdf.subsection_title('La Méthylation de l\'ADN')
     pdf.body_text(
         "La méthylation de l'ADN est une modification épigénétique consistant en l'ajout d'un "
-        "groupe méthyle (CH₃) sur une cytosine, principalement au niveau des dinucléotides CpG. "
+        "groupe méthyle (CH3) sur une cytosine, principalement au niveau des dinucléotides CpG. "
         "Cette modification joue un rôle crucial dans la régulation de l'expression génique et "
         "constitue un mécanisme fondamental de contrôle de l'activité transcriptionnelle sans "
         "altération de la séquence d'ADN elle-même."
@@ -684,8 +684,8 @@ def generate_comprehensive_report():
         "entre méthylation et âge :"
     )
     pdf.body_text(
-        "• Pour âge ≤ 20 ans : f(age) = log(age + 1) - log(21)\n"
-        "• Pour âge > 20 ans : f(age) = (age - 20) / 21"
+        "- Pour age <= 20 ans : f(age) = log(age + 1) - log(21)\n"
+        "- Pour age > 20 ans : f(age) = (age - 20) / 21"
     )
     pdf.body_text(
         "Cette transformation capture la dynamique rapide du développement durant l'enfance et "
@@ -816,7 +816,7 @@ def generate_comprehensive_report():
     pdf.body_text(
         "L'array Illumina EPICv2 représente la dernière génération de puces de méthylation haute densité. "
         "Elle mesure ~900,000 sites CpG à travers le génome, offrant une couverture complète des régions "
-        "régulatrices, promoteurs, enhancers, et îlots CpG. Les valeurs de méthylation (β-values) sont "
+        "régulatrices, promoteurs, enhancers, et îlots CpG. Les valeurs de méthylation (beta-values) sont "
         "comprises entre 0 (non méthylé) et 1 (complètement méthylé)."
     )
 
@@ -848,7 +848,7 @@ def generate_comprehensive_report():
 
         if model_name == "Ridge":
             pdf.body_text(
-                f"Régression Ridge avec régularisation L2 forte (α={5000}). "
+                f"Régression Ridge avec régularisation L2 forte (alpha={5000}). "
                 "Pénalise les coefficients élevés sans forcer de sélection sparse. "
                 "Particulièrement adapté aux problèmes haute-dimensionnalité."
             )
@@ -877,7 +877,7 @@ def generate_comprehensive_report():
         elif model_name == "AltumAge":
             pdf.body_text(
                 "Multi-Layer Perceptron (architecture [128, 64, 32]). Inspiré de DeepMAge. "
-                "Régularisation L2 (α=0.001) et early stopping pour éviter sur-apprentissage."
+                "Régularisation L2 (alpha=0.001) et early stopping pour éviter sur-apprentissage."
             )
 
     pdf.section_title('4.4. Métriques d\'Évaluation')
@@ -964,7 +964,7 @@ def generate_comprehensive_report():
         ['IQR', f"{best_stats['iqr']:.2f} ans", 'Dispersion inter-quartile'],
         ['Biais moyen', f"{best_stats['mean_bias']:.2f} ans", 'Surestimation/sous-estimation'],
         ['Shapiro p-value', f"{best_stats['shapiro_p']:.3f}", 'Normalité des résidus'],
-        ['Age Accel. σ', f"{best_stats['age_accel_std']:.2f} ans", 'Variabilité biologique'],
+        ['Age Accel. sigma', f"{best_stats['age_accel_std']:.2f} ans", 'Variabilité biologique'],
     ]
 
     pdf.add_table(stats_data, stats_headers, stats_widths)
@@ -1094,7 +1094,7 @@ def generate_comprehensive_report():
     pdf.subsection_title('Hannum (2013)')
     pdf.body_text(
         "Comme Hannum, nous utilisons des échantillons sanguins et intégrons des covariables "
-        "démographiques (genre, ethnicité). Notre régularisation plus forte (α=5000 pour Ridge) "
+        "démographiques (genre, ethnicité). Notre régularisation plus forte (alpha=5000 pour Ridge) "
         "comparée à l'étude originale reflète notre ratio échantillons:features défavorable."
     )
 
@@ -1443,7 +1443,7 @@ Hardware :
     output_path = OUTPUT_DIR / f"comprehensive_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     pdf.output(str(output_path))
 
-    print(f"\n✓ Rapport PDF généré : {output_path}")
+    print(f"\n[OK] Rapport PDF généré : {output_path}")
     print(f"  Pages : {pdf.page_no()}")
     print(f"  Taille : {output_path.stat().st_size / 1024 / 1024:.2f} MB")
 
@@ -1463,9 +1463,9 @@ if __name__ == "__main__":
 
     try:
         report_path = generate_comprehensive_report()
-        print("\n✅ Rapport généré avec succès!")
-        print(f"📄 Chemin : {report_path}")
+        print("\n[OK] Rapport généré avec succès!")
+        print(f" Chemin : {report_path}")
     except Exception as e:
-        print(f"\n❌ Erreur lors de la génération : {e}")
+        print(f"\n[X] Erreur lors de la génération : {e}")
         import traceback
         traceback.print_exc()
