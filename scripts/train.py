@@ -206,7 +206,30 @@ def main():
         try:
             # Create and train model
             model = model_factory()
-            model.fit(X_train, y_train)
+
+            # Special handling for XGBoost with early stopping
+            if name == "XGBoost":
+                # Split training into train/validation for early stopping
+                from sklearn.model_selection import train_test_split as split_val
+                X_tr, X_val, y_tr, y_val = split_val(
+                    X_train, y_train, test_size=0.15, random_state=42
+                )
+
+                logger.info(f"Using validation set: train={len(X_tr)}, val={len(X_val)}")
+
+                # Fit with evaluation set for early stopping
+                model.fit(
+                    X_tr, y_tr,
+                    eval_set=[(X_val, y_val)],
+                    verbose=False
+                )
+
+                if hasattr(model, 'best_iteration'):
+                    logger.info(f"Early stopping at iteration {model.best_iteration} "
+                              f"(out of {config.models.xgboost_n_estimators})")
+            else:
+                # Standard fit for other models
+                model.fit(X_train, y_train)
 
             # Evaluate
             metrics = evaluate_model(

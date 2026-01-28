@@ -65,8 +65,10 @@ def create_xgboost_model(config: ModelConfig):
 
     logger.info(f"Creating XGBoost with n_estimators={config.xgboost_n_estimators}, "
                 f"learning_rate={config.xgboost_learning_rate}, "
+                f"max_depth={config.xgboost_max_depth}, "
                 f"reg_alpha={config.xgboost_reg_alpha}, "
-                f"reg_lambda={config.xgboost_reg_lambda}")
+                f"reg_lambda={config.xgboost_reg_lambda}, "
+                f"early_stopping_rounds={config.xgboost_early_stopping_rounds}")
 
     return XGBRegressor(
         n_estimators=config.xgboost_n_estimators,
@@ -76,7 +78,9 @@ def create_xgboost_model(config: ModelConfig):
         colsample_bytree=0.8,
         reg_alpha=config.xgboost_reg_alpha,
         reg_lambda=config.xgboost_reg_lambda,
+        early_stopping_rounds=config.xgboost_early_stopping_rounds,
         objective="reg:squarederror",
         n_jobs=-1,
         random_state=42,
+        eval_metric="mae",  # Use MAE for early stopping evaluation
     )

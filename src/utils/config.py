@@ -32,6 +32,7 @@ class ModelConfig:
     xgboost_max_depth: int = 6
     xgboost_reg_alpha: float = 1.0
     xgboost_reg_lambda: float = 10.0
+    xgboost_early_stopping_rounds: int = 20
     rf_n_estimators: int = 300
     rf_max_depth: int = 20
     mlp_hidden_layers: tuple = (128, 64, 32)
@@ -108,6 +109,7 @@ class Config:
                 'xgboost_max_depth': self.models.xgboost_max_depth,
                 'xgboost_reg_alpha': self.models.xgboost_reg_alpha,
                 'xgboost_reg_lambda': self.models.xgboost_reg_lambda,
+                'xgboost_early_stopping_rounds': self.models.xgboost_early_stopping_rounds,
                 'rf_n_estimators': self.models.rf_n_estimators,
                 'rf_max_depth': self.models.rf_max_depth,
                 'mlp_hidden_layers': list(self.models.mlp_hidden_layers),
