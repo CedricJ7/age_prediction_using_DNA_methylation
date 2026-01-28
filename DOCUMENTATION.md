@@ -111,11 +111,9 @@ age_prediction_using_DNA_methylation/
 ```python
 models = [
     "ElasticNet",        # Régression L1+L2
+    "Lasso",             # Régression L1
     "Ridge",             # Régression L2
     "RandomForest",      # Bagging d'arbres
-    "BaggingElasticNet", # Bagging + ElasticNet
-    "GradientBoosting",  # Boosting sklearn
-    "HistGradientBoosting",  # Boosting rapide
     "XGBoost",           # Boosting optimisé
     "AltumAge",          # MLP (deep learning)
 ]
@@ -323,7 +321,7 @@ RandomForestRegressor(
 **Avantages**: Robuste, gère les non-linéarités, peu d'hyperparamètres
 **Inconvénients**: Moins interprétable, peut overfitter
 
-### 3. Gradient Boosting / XGBoost
+### 3. XGBoost
 
 ```python
 # Boosting: arbres entraînés séquentiellement sur les résidus
@@ -341,22 +339,7 @@ XGBRegressor(
 **Avantages**: Excellentes performances, régularisation intégrée
 **Inconvénients**: Risque d'overfitting, plus lent à entraîner
 
-### 4. Bagging ElasticNet
-
-```python
-# Bagging appliqué à ElasticNet
-BaggingRegressor(
-    estimator=ElasticNet(...),
-    n_estimators=20,     # Nombre de modèles
-    max_samples=0.8,     # Fraction d'échantillons par modèle
-    max_features=0.8,    # Fraction de features par modèle
-)
-```
-
-**Avantages**: Réduit la variance, combine les avantages
-**Inconvénients**: Plus coûteux en calcul
-
-### 5. AltumAge (MLP)
+### 4. AltumAge (MLP)
 
 ```python
 # Réseau de neurones multicouche
