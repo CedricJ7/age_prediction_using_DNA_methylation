@@ -49,10 +49,9 @@ def load_results():
 app = Dash(
     __name__,
     suppress_callback_exceptions=True,
-    external_stylesheets=['assets/style-enhanced.css'],
-    external_scripts=['assets/theme-switcher.js']
+    external_stylesheets=['assets/style-minimal.css']
 )
-app.title = "DNAm Age Prediction • Epigenetic Clock"
+app.title = "DNAm Age Prediction"
 
 metrics_data, preds_data, annot_data = load_results()
 
@@ -74,16 +73,9 @@ app.layout = html.Div(
             children=[
                 html.Div(className="topbar-content", children=[
                     html.Div(className="logo-section", children=[
-                        html.Span("🧬", className="logo-icon"),
-                        html.Span("DNAm Age Predictor", className="logo-text"),
+                        html.Span("DNA Methylation Age Prediction", className="logo-text"),
                     ]),
-                    html.Div(style={"display": "flex", "gap": "1rem", "alignItems": "center"}, children=[
-                        html.Button("🌙", id="theme-toggle", className="btn secondary", **{
-                            "aria-label": "Toggle dark/light mode",
-                            "title": "Switch theme"
-                        }),
-                        html.Button("📥 Export Report", id="btn-export", className="btn primary"),
-                    ]),
+                    html.Button("Export Report", id="btn-export", className="btn primary"),
                 ]),
             ],
         ),
@@ -143,8 +135,8 @@ app.layout = html.Div(
                         html.Div(
                             className="hero",
                             children=[
-                                html.H1("Epigenetic Clock Analysis", className="hero-title"),
-                                html.P("Explore cutting-edge DNA methylation age prediction models with interactive visualizations and comprehensive metrics.", className="hero-subtitle"),
+                                html.H1("Epigenetic Clock Benchmark", className="hero-title"),
+                                html.P("Compare age prediction models based on DNA methylation data.", className="hero-subtitle"),
                             ],
                         ),
                         
@@ -162,28 +154,24 @@ app.layout = html.Div(
                                     selected_className="tab-selected",
                                     children=[
                                         # Métriques cohorte
-                                        html.Div(className="section-title", children="📊 Performance Metrics"),
+                                        html.Div(className="section-title", children="Performance Metrics"),
                                         html.Div(className="kpi-row", children=[
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("📈", className="kpi-icon"),
                                                 html.Div("Correlation", className="kpi-label"),
                                                 html.Div(id="kpi-corr", className="kpi-value"),
-                                            ], **{"aria-label": "Correlation coefficient"}),
+                                            ]),
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("⚖️", className="kpi-icon"),
                                                 html.Div("Mean Bias", className="kpi-label"),
                                                 html.Div(id="kpi-mean-diff", className="kpi-value"),
-                                            ], **{"aria-label": "Mean prediction bias"}),
+                                            ]),
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("📏", className="kpi-icon"),
                                                 html.Div("MAE", className="kpi-label"),
                                                 html.Div(id="kpi-mae", className="kpi-value"),
-                                            ], **{"aria-label": "Mean absolute error"}),
+                                            ]),
                                             html.Div(className="kpi-card", children=[
-                                                html.Div("🎯", className="kpi-icon"),
-                                                html.Div("R² Score", className="kpi-label"),
+                                                html.Div("R²", className="kpi-label"),
                                                 html.Div(id="kpi-r2", className="kpi-value"),
-                                            ], **{"aria-label": "R-squared score"}),
+                                            ]),
                                         ]),
                                         html.Div(className="grid", children=[
                                             html.Div(dcc.Loading(
