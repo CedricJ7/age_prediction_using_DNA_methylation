@@ -1,0 +1,13 @@
+Model,Parameter,Value
+Ridge,alpha,0.001004566619043331
+Ridge,solver,auto
+Lasso,alpha,0.0009966695034338102
+Lasso,max_iter,8647
+Lasso,selection,random
+ElasticNet,alpha,0.003281828289031743
+ElasticNet,l1_ratio,0.010576836708688562
+ElasticNet,max_iter,3076
+ElasticNet,selection,random
+SVR,kernel,linear
+SVR,C,0.012674255898937233
+SVR,epsilon,0.8123245085588685

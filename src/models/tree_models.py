@@ -80,7 +80,7 @@ def create_xgboost_model(config: ModelConfig):
         reg_lambda=config.xgboost_reg_lambda,
         early_stopping_rounds=config.xgboost_early_stopping_rounds,
         objective="reg:squarederror",
+        eval_metric="mae",
         n_jobs=-1,
         random_state=42,
-        eval_metric="mae",  # Use MAE for early stopping evaluation
     )
