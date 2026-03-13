@@ -1,0 +1,521 @@
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\geometry{margin=2.5cm}
+
+% Couleurs personnalisées
+\definecolor{primary}{RGB}{0,150,136}
+\definecolor{secondary}{RGB}{63,81,181}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=secondary,
+    filecolor=secondary,
+    urlcolor=primary,
+    citecolor=primary
+}
+
+% Titre
+\title{
+    \vspace{-1cm}
+    \textbf{Prédiction de l'Âge par Méthylation de l'ADN} \\
+    \large Développement et Évaluation d'Horloges Épigénétiques
+}
+\author{
+    Analyse automatisée \\
+    \textit{DNAm Age Prediction Benchmark}
+}
+\date{01 March 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Ce rapport présente une analyse complète des modèles de prédiction d'âge basés sur les 
+profils de méthylation de l'ADN. À partir d'une cohorte de 400 échantillons sains, 
+nous avons développé et comparé plusieurs approches algorithmiques : régression Elastic Net, 
+Random Forest, XGBoost et réseaux de neurones (AltumAge). Le meilleur modèle (Stack Optuna) 
+atteint une erreur absolue moyenne de 3.33 années avec un 
+coefficient de détermination R² de 0.9309. Les analyses stratifiées 
+révèlent des patterns de non-linéarité selon l'âge et des différences potentielles selon le 
+genre, soulignant l'importance d'intégrer ces covariables dans les modèles prédictifs.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+
+\section{Introduction et Contexte}
+
+\subsection{Méthylation de l'ADN}
+
+La méthylation de l'ADN est une modification épigénétique fondamentale qui consiste en l'ajout 
+d'un groupe méthyle (CH\textsubscript{3}) sur la cytosine des dinucléotides CpG. Ces sites CpG 
+sont des régions de l'ADN où une cytosine est suivie d'une guanine dans la direction 5' vers 3'.
+
+Cette modification chimique joue un rôle crucial dans la régulation de l'expression génique sans 
+altérer la séquence d'ADN sous-jacente. Les patterns de méthylation sont :
+\begin{itemize}
+    \item \textbf{Héritables} : transmis lors de la division cellulaire
+    \item \textbf{Réversibles} : peuvent être modifiés par des facteurs environnementaux
+    \item \textbf{Tissu-spécifiques} : varient selon le type cellulaire
+\end{itemize}
+
+\subsection{Le Concept d'Âge Biologique}
+
+L'âge biologique représente l'état physiologique réel d'un organisme, par opposition à l'âge 
+chronologique qui mesure simplement le temps écoulé depuis la naissance. Plusieurs études 
+pionnières, notamment celles de Horvath (2013) et Hannum (2013), ont démontré que les profils 
+de méthylation de l'ADN sont fortement corrélés avec l'âge.
+
+Cette découverte a conduit au développement des \textbf{horloges épigénétiques}, des modèles 
+mathématiques capables de prédire l'âge d'un individu à partir de son profil de méthylation 
+avec une précision remarquable (erreur moyenne de 3-4 années).
+
+\subsection{Horloges Biologiques}
+
+Les horloges épigénétiques reposent sur l'identification de sites CpG dont le niveau de 
+méthylation évolue de manière prévisible avec l'âge. Les principales horloges développées sont :
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{llcc}
+\hline
+\textbf{Horloge} & \textbf{Auteur} & \textbf{Année} & \textbf{N CpG} \\
+\hline
+Multi-tissue clock & Horvath & 2013 & 353 \\
+Blood clock & Hannum & 2013 & 71 \\
+PhenoAge & Levine & 2018 & 513 \\
+GrimAge & Lu & 2019 & 1030 \\
+\hline
+\end{tabular}
+\caption{Principales horloges épigénétiques publiées}
+\label{tab:clocks}
+\end{table}
+
+\subsection{Lien avec le Cancer}
+
+Les patients atteints de cancer présentent souvent une dérégulation globale de la méthylation 
+de l'ADN, caractérisée par :
+\begin{itemize}
+    \item Une \textbf{hypométhylation globale} du génome
+    \item Une \textbf{hyperméthylation locale} des promoteurs de gènes suppresseurs de tumeurs
+    \item Une \textbf{accélération épigénétique} (âge biologique > âge chronologique)
+\end{itemize}
+
+L'accélération de l'âge épigénétique est associée à un risque accru de mortalité et de 
+développement de maladies liées à l'âge, faisant des horloges biologiques des biomarqueurs 
+prometteurs pour la médecine personnalisée.
+
+\section{Données et Matériel}
+
+\subsection{Description de la Cohorte}
+
+Cette étude utilise des données de méthylation de l'ADN provenant d'échantillons sains, 
+permettant d'établir une référence pour le vieillissement normal.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lr}
+\hline
+\textbf{Caractéristique} & \textbf{Valeur} \\
+\hline
+Nombre total d'échantillons & 400 \\
+Âge moyen & 53.0 $\pm$ 21.2 ans \\
+Âge minimum & 18.1 ans \\
+Âge maximum & 90.0 ans \\
+\hline
+\end{tabular}
+\caption{Caractéristiques démographiques de la cohorte}
+\label{tab:demographics}
+\end{table}
+
+\subsubsection{Répartition par Genre}
+
+\begin{itemize}
+    \item Femmes : 214 (53.5\%)
+    \item Hommes : 186 (46.5\%)
+\end{itemize}
+
+\subsubsection{Répartition par Ethnicité}
+\begin{itemize}
+    \item White : 239 (59.8\%)
+    \item Black : 54 (13.5\%)
+    \item Inconnu : 48 (12.0\%)
+    \item Hispanic : 33 (8.2\%)
+    \item Asian : 24 (6.0\%)
+    \item American Indian or Alaska Native : 2 (0.5\%)
+\end{itemize}
+
+\subsection{Variables Disponibles}
+
+Les données comprennent :
+\begin{enumerate}
+    \item \textbf{Intensité de méthylation} : Valeurs beta ($\beta$) comprises entre 0 et 1, 
+          représentant la proportion de méthylation à chaque site CpG
+    \item \textbf{Âge chronologique} : Âge réel des individus en années
+    \item \textbf{Genre} : Information binaire (Homme/Femme)
+    \item \textbf{Ethnicité} : Classification ethnique des participants
+\end{enumerate}
+
+\subsection{Haute Dimensionnalité}
+
+Les données de méthylation sont caractérisées par une très haute dimensionnalité :
+\begin{itemize}
+    \item \textbf{Plateforme} : Illumina EPICv2 (Infinium MethylationEPIC v2.0)
+    \item \textbf{Sites CpG totaux} : $\sim$ 900,000 sondes
+    \item \textbf{Sites CpG utilisés} : 500 après filtrage
+    \item \textbf{Features finales} : 500 (incluant variables démographiques)
+    \item \textbf{Ratio échantillons/features} : 0.8000
+\end{itemize}
+
+Ce ratio défavorable ($n << p$) nécessite l'utilisation de techniques de régularisation 
+et/ou de réduction de dimensionnalité.
+
+\subsection{Défis Techniques}
+
+Plusieurs défis techniques doivent être adressés :
+
+\begin{enumerate}
+    \item \textbf{Variabilité technique (batch effects)} : Les échantillons proviennent 
+          de différents lots de puces (chips), introduisant une variabilité technique 
+          indépendante du signal biologique.
+    
+    \item \textbf{Valeurs manquantes} : Certaines sondes peuvent présenter des valeurs 
+          manquantes dues à des problèmes d'hybridation ou de qualité.
+    
+    \item \textbf{Non-linéarité selon l'âge} : La relation entre méthylation et âge 
+          peut présenter des non-linéarités, notamment aux extrêmes de la distribution d'âge.
+    
+    \item \textbf{Différences selon le genre} : Certains sites CpG présentent des 
+          patterns de méthylation différents entre hommes et femmes.
+\end{enumerate}
+
+\section{Méthodologie et Pistes Algorithmiques}
+
+\subsection{Objectif Principal}
+
+L'objectif de ce travail est de développer et comparer plusieurs horloges biologiques 
+basées sur les profils de méthylation de l'ADN, et d'évaluer leurs performances par 
+rapport aux modèles de référence existants (notamment PC-Horvath).
+
+\subsection{Pipeline d'Analyse}
+
+Le pipeline d'analyse comprend les étapes suivantes :
+
+\begin{enumerate}
+    \item \textbf{Prétraitement} : Filtrage des sondes de mauvaise qualité, 
+          imputation des valeurs manquantes par KNN (k=5)
+    \item \textbf{Sélection de variables} : Identification des CpG les plus 
+          corrélés avec l'âge
+    \item \textbf{Intégration des covariables} : Ajout du genre et de l'ethnicité 
+          comme features supplémentaires
+    \item \textbf{Entraînement} : Ajustement des modèles sur l'ensemble d'entraînement
+    \item \textbf{Évaluation} : Mesure des performances sur l'ensemble de test
+\end{enumerate}
+
+\subsection{Algorithmes Implémentés}
+
+\subsubsection{Méthodes Classiques}
+
+\paragraph{Elastic Net}
+La régression Elastic Net combine les pénalités L1 (Lasso) et L2 (Ridge) :
+\begin{equation}
+\min_{\beta} \frac{1}{2n} ||y - X\beta||_2^2 + \alpha \left( \rho ||\beta||_1 + \frac{1-\rho}{2} ||\beta||_2^2 \right)
+\end{equation}
+où $\alpha$ contrôle la force de régularisation et $\rho$ (l1\_ratio) équilibre entre L1 et L2.
+Cette méthode est particulièrement adaptée pour :
+\begin{itemize}
+    \item La sélection automatique de variables (sparsité via L1)
+    \item La gestion de la multicolinéarité (stabilisation via L2)
+    \item Les problèmes de haute dimension ($p >> n$)
+\end{itemize}
+
+\subsubsection{Machine Learning Avancé}
+
+\paragraph{Random Forest}
+Ensemble de 500 arbres de décision entraînés sur des sous-échantillons bootstrap. 
+Les prédictions sont moyennées pour réduire la variance.
+
+\paragraph{XGBoost}
+Implémentation optimisée du gradient boosting avec :
+\begin{itemize}
+    \item Régularisation L1 et L2 des poids des feuilles
+    \item Apprentissage incrémental avec early stopping
+    \item Gestion native des valeurs manquantes
+\end{itemize}
+
+\paragraph{AltumAge (MLP)}
+Réseau de neurones multicouche inspiré de l'architecture AltumAge :
+\begin{itemize}
+    \item Architecture : 5 couches cachées de 32 neurones
+    \item Activation : ReLU (Rectified Linear Unit)
+    \item Régularisation : Early stopping
+\end{itemize}
+
+\subsection{Sélection de Variables}
+
+Face à la haute dimensionnalité des données ($\sim$900,000 CpG), une sélection de variables 
+est indispensable. Nous utilisons une approche basée sur la corrélation :
+
+\begin{enumerate}
+    \item Calcul de la corrélation de Pearson entre chaque CpG et l'âge
+    \item Sélection des top-k CpG les plus corrélés (|r| maximal)
+    \item Ajout des covariables démographiques (genre, ethnicité)
+\end{enumerate}
+
+Cette approche filtre permet de réduire considérablement la dimensionnalité tout en 
+conservant les variables les plus informatives.
+
+\subsection{Gestion des Covariables}
+
+Les modèles intègrent les covariables démographiques suivantes :
+\begin{itemize}
+    \item \textbf{Genre} : Variable binaire (is\_female)
+    \item \textbf{Ethnicité} : Encodage one-hot des catégories ethniques
+\end{itemize}
+
+Cette intégration permet de capturer les différences biologiques liées au sexe et à 
+l'origine ethnique, améliorant potentiellement la précision des prédictions.
+
+\section{Métriques de Performance et Évaluation}
+
+\subsection{Résultats Globaux}
+
+Le tableau \ref{tab:metrics} présente les performances des différents modèles évalués 
+sur l'ensemble de test.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lcccc}
+\hline
+\textbf{Modèle} & \textbf{MAE (ans)} & \textbf{MAD (ans)} & \textbf{R²} & \textbf{Corrélation} \\
+\hline
+Stack Optuna & 3.33 & 2.29 & 0.9309 & 0.9652 \\
+Residual Learning & 3.33 & 2.21 & 0.9230 & 0.9614 \\
+ElasticNetCV & 3.43 & 2.44 & 0.9247 & 0.9619 \\
+\hline
+\end{tabular}
+\caption{Performances des modèles de prédiction d'âge}
+\label{tab:metrics}
+\end{table}
+
+\subsection{Analyse au Niveau de la Cohorte}
+
+\subsubsection{Corrélation Âge Biologique -- Âge Chronologique}
+
+La corrélation de Pearson entre l'âge prédit (biologique) et l'âge chronologique mesure 
+la force de la relation linéaire entre ces deux variables. Une corrélation proche de 1 
+indique une excellente capacité prédictive.
+
+\begin{itemize}
+    \item \textbf{Stack Optuna} : r = 0.9652
+    \item \textbf{Residual Learning} : r = 0.9614
+    \item \textbf{ElasticNetCV} : r = 0.9619
+\end{itemize}
+
+\subsubsection{Écart Moyen (Biais)}
+
+L'écart moyen (Mean Error) indique si le modèle surestime ou sous-estime systématiquement l'âge :
+
+\begin{itemize}
+    \item \textbf{Stack Optuna} : +0.27 ans
+    \item \textbf{Residual Learning} : +0.41 ans
+    \item \textbf{ElasticNetCV} : +0.31 ans
+\end{itemize}
+
+Un écart proche de zéro indique un modèle non biaisé.
+
+\subsection{Analyse au Niveau Individuel}
+
+\subsubsection{Delta Age}
+
+Le Delta Age ($\Delta$Age) représente la différence entre l'âge prédit et l'âge chronologique 
+pour chaque individu :
+\begin{equation}
+\Delta\text{Age} = \text{Âge}_{\text{prédit}} - \text{Âge}_{\text{chronologique}}
+\end{equation}
+
+\begin{itemize}
+    \item $\Delta$Age $>$ 0 : Vieillissement accéléré
+    \item $\Delta$Age $<$ 0 : Vieillissement ralenti
+    \item $\Delta$Age $\approx$ 0 : Vieillissement normal
+\end{itemize}
+
+\subsubsection{Age Acceleration}
+
+L'accélération de l'âge (Age Acceleration) est définie comme le résidu de la régression 
+linéaire de l'âge prédit sur l'âge chronologique :
+\begin{equation}
+\text{AgeAccel} = \text{Âge}_{\text{prédit}} - (\alpha + \beta \times \text{Âge}_{\text{chronologique}})
+\end{equation}
+
+Cette mesure est indépendante de l'âge chronologique et représente l'écart par rapport 
+au vieillissement attendu.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lcc}
+\hline
+\textbf{Modèle} & \textbf{AgeAccel moyen} & \textbf{AgeAccel écart-type} \\
+\hline
+Stack Optuna & -0.00 & 5.49 \\
+Residual Learning & 0.00 & 5.79 \\
+ElasticNetCV & 0.00 & 5.68 \\
+\hline
+\end{tabular}
+\caption{Statistiques d'Age Acceleration par modèle}
+\label{tab:age_accel}
+\end{table}
+
+\subsection{Meilleur Modèle}
+
+Le modèle \textbf{Stack Optuna} obtient les meilleures performances avec :
+\begin{itemize}
+    \item MAE = 3.33 années
+    \item R² = 0.9309
+    \item Corrélation = 0.9652
+\end{itemize}
+
+\section{Analyses Stratifiées}
+
+\subsection{Non-linéarité selon l'Âge}
+
+La relation entre l'erreur de prédiction (Delta Age) et l'âge chronologique peut 
+présenter des non-linéarités. Une régression polynomiale de degré 2 a été ajustée :
+
+\begin{equation}
+\Delta\text{Age} = -0.0025 \times \text{Âge}^2 + (+0.2194) \times \text{Âge} + (-3.24)
+\end{equation}
+
+\begin{itemize}
+    \item Si le coefficient quadratique est significativement différent de zéro, 
+          cela indique une non-linéarité dans les erreurs.
+    \item Un coefficient positif suggère une surestimation aux âges extrêmes.
+    \item Un coefficient négatif suggère une sous-estimation aux âges extrêmes.
+\end{itemize}
+
+
+\subsubsection{Différences selon le Genre}
+
+L'analyse des erreurs de prédiction selon le genre révèle d'éventuelles différences 
+biologiques dans les patterns de méthylation liés au vieillissement.
+
+Les graphiques de l'application interactive montrent la distribution du Delta Age 
+pour chaque genre, permettant d'identifier d'éventuels biais du modèle.
+
+
+\subsection{Variabilité Technique (Batch Effects)}
+
+La variabilité technique entre les différents lots de puces (chips) peut introduire 
+des biais systématiques. L'analyse par chip ID permet d'évaluer :
+
+\begin{itemize}
+    \item La variance inter-lot (différences moyennes entre chips)
+    \item La variance intra-lot (variabilité au sein d'un même chip)
+    \item L'impact potentiel sur les prédictions d'âge
+\end{itemize}
+
+Si la variance inter-lot est élevée par rapport à la variance intra-lot, une 
+normalisation par batch (comme ComBat) pourrait améliorer les performances.
+
+\section{Conclusion et Perspectives}
+
+\subsection{Synthèse des Résultats}
+
+Cette étude a permis de développer et comparer plusieurs modèles de prédiction d'âge 
+basés sur les profils de méthylation de l'ADN. Les principaux résultats sont :
+
+\begin{enumerate}
+    \item Le modèle \textbf{Stack Optuna} offre les meilleures performances avec une 
+          MAE de 3.33 années et un R² de 0.9309.
+    
+    \item L'intégration des covariables démographiques (genre, ethnicité) permet 
+          d'améliorer la précision des prédictions en capturant les différences 
+          biologiques individuelles.
+    
+    \item Les analyses stratifiées révèlent des patterns de non-linéarité selon l'âge 
+          et des différences potentielles selon le genre.
+\end{enumerate}
+
+\subsection{Amélioration des Modèles Existants}
+
+Par rapport aux horloges existantes (Horvath, Hannum), notre approche présente 
+plusieurs avantages :
+
+\begin{itemize}
+    \item \textbf{Intégration multi-variée} : Prise en compte du genre et de l'ethnicité
+    \item \textbf{Flexibilité algorithmique} : Comparaison de multiples approches 
+          (linéaire, ensemble, deep learning)
+    \item \textbf{Analyse de la variabilité} : Identification des sources de biais technique
+\end{itemize}
+
+\subsection{Interprétabilité des Modèles}
+
+L'interprétabilité des modèles est cruciale pour comprendre les mécanismes biologiques 
+du vieillissement. Les coefficients du modèle Elastic Net identifient les CpG les plus 
+prédictifs, qui peuvent être associés à :
+
+\begin{itemize}
+    \item Des gènes impliqués dans la réparation de l'ADN
+    \item Des voies de signalisation du vieillissement (mTOR, sirtuines)
+    \item Des processus inflammatoires chroniques
+    \item La sénescence cellulaire
+\end{itemize}
+
+\subsection{Perspectives}
+
+Plusieurs pistes d'amélioration peuvent être envisagées :
+
+\begin{enumerate}
+    \item \textbf{Normalisation des batch effects} : Application de ComBat ou méthodes 
+          similaires pour réduire la variabilité technique.
+    
+    \item \textbf{Architectures deep learning} : Exploration de réseaux plus complexes 
+          (attention mechanisms, transformers) adaptés aux données omiques.
+    
+    \item \textbf{Validation externe} : Test sur des cohortes indépendantes pour 
+          évaluer la généralisabilité des modèles.
+    
+    \item \textbf{Application clinique} : Utilisation comme biomarqueur pour le 
+          suivi des interventions anti-âge ou le pronostic de maladies.
+\end{enumerate}
+
+
+\section*{Références}
+\addcontentsline{toc}{section}{Références}
+
+\begin{enumerate}
+    \item Horvath, S. (2013). DNA methylation age of human tissues and cell types. 
+          \textit{Genome Biology}, 14(10), R115.
+    
+    \item Hannum, G., et al. (2013). Genome-wide methylation profiles reveal quantitative 
+          views of human aging rates. \textit{Molecular Cell}, 49(2), 359-367.
+    
+    \item Levine, M. E., et al. (2018). An epigenetic biomarker of aging for lifespan 
+          and healthspan. \textit{Aging}, 10(4), 573-591.
+    
+    \item Lu, A. T., et al. (2019). DNA methylation GrimAge strongly predicts lifespan 
+          and healthspan. \textit{Aging}, 11(2), 303-327.
+    
+    \item de Lima Camillo, L. P., et al. (2021). AltumAge: A Pan-Tissue DNA Methylation 
+          Epigenetic Clock Based on Deep Learning. \textit{Aging and Disease}.
+\end{enumerate}
+
+\end{document}

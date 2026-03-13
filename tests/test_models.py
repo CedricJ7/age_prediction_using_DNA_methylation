@@ -8,14 +8,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.linear_model import Ridge, Lasso, ElasticNet
 from sklearn.ensemble import RandomForestRegressor
 
-from src.utils.config import ModelConfig
-from src.models.linear_models import (
+import ModelConfig
+import (
     create_ridge_model,
     create_lasso_model,
     create_elasticnet_model
 )
-from src.models.tree_models import create_random_forest_model, create_xgboost_model
-from src.models.neural_models import create_mlp_model
+import create_random_forest_model, create_xgboost_model
+import create_mlp_model
 
 
 def test_create_ridge_model():

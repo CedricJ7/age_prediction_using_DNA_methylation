@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-from src.data.data_loader import (
+import (
     load_annotations,
     load_cpg_names,
     load_clock_cpgs,

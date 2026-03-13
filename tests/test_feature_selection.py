@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.features.selection import filter_cpgs_by_missing_rate
+import filter_cpgs_by_missing_rate
 
 
 def test_filter_cpgs_by_missing_rate_removes_high_missing():

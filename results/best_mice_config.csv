@@ -1,0 +1,2 @@
+config_name,mae,params
+MICE + BR + 100 neighbors,19.962474822998047,"{'estimator': BayesianRidge(), 'n_nearest_features': 100, 'max_iter': 10, 'random_state': 42}"

@@ -23,15 +23,20 @@ from revolutionary_viz import (
 
 RESULTS_DIR = Path("results")
 
-# Enhanced model colors with better contrast
+# Couleurs par modèle
 MODEL_COLORS = {
-    "ElasticNet": "#00ffc8",
-    "Lasso": "#22d3ee",
-    "Ridge": "#60a5fa",
-    "RandomForest": "#a78bfa",
-    "XGBoost": "#f472b6",
-    "AltumAge": "#fbbf24",
-    "DeepMAge": "#fb923c",  # Orange for PyTorch deep learning
+    # Meilleurs modèles (CV 5-fold)
+    "Residual Learning": "#00ffc8",
+    "ElasticNetCV":      "#f472b6",
+    "Stack Optuna":      "#fbbf24",
+    # Anciens modèles (compatibilité)
+    "ElasticNet":        "#22d3ee",
+    "Lasso":             "#60a5fa",
+    "Ridge":             "#a78bfa",
+    "RandomForest":      "#fb923c",
+    "XGBoost":           "#e879f9",
+    "AltumAge":          "#34d399",
+    "DeepMAge":          "#f97316",
 }
 
 
@@ -47,6 +52,55 @@ def load_results():
     return metrics, preds, annot
 
 
+def load_cv_results():
+    """Charge les résultats de la comparaison 5-fold CV (avec IC 95%)."""
+    rows = []
+
+    # model_comparison_results.csv (ElasticNetCV, Residual Learning, etc.)
+    p1 = RESULTS_DIR / "model_comparison_results.csv"
+    if p1.exists():
+        df = pd.read_csv(p1)
+        # colonnes : Modèle/modèle, n_feat, MAE_mean, MAE_ci95, R2_mean, R2_ci95
+        col_model = "Modèle" if "Modèle" in df.columns else "model"
+        for _, r in df.iterrows():
+            name = str(r[col_model]).strip()
+            # Nettoyage du préfixe numérique "1. ElasticNetCV" -> "ElasticNetCV"
+            if ". " in name:
+                name = name.split(". ", 1)[1]
+            rows.append({
+                "model": name,
+                "mae_mean": r.get("MAE_mean", np.nan),
+                "mae_ci95": r.get("MAE_ci95", np.nan),
+                "r2_mean":  r.get("R2_mean",  np.nan),
+                "r2_ci95":  r.get("R2_ci95",  np.nan),
+                "source":   "Comparaison modèles",
+            })
+
+    # stacking_optuna_results.csv
+    p2 = RESULTS_DIR / "stacking_optuna_results.csv"
+    if p2.exists():
+        df2 = pd.read_csv(p2)
+        col_model2 = "Modèle" if "Modèle" in df2.columns else "model"
+        existing_names = {r["model"] for r in rows}
+        for _, r in df2.iterrows():
+            name = str(r[col_model2]).strip()
+            if ". " in name:
+                name = name.split(". ", 1)[1]
+            if name not in existing_names:
+                rows.append({
+                    "model": name,
+                    "mae_mean": r.get("MAE_mean", np.nan),
+                    "mae_ci95": r.get("MAE_ci95", np.nan),
+                    "r2_mean":  r.get("R2_mean",  np.nan),
+                    "r2_ci95":  r.get("R2_ci95",  np.nan),
+                    "source":   "Stacking Optuna",
+                })
+
+    if not rows:
+        return None
+    return pd.DataFrame(rows).sort_values("mae_mean").reset_index(drop=True)
+
+
 app = Dash(
     __name__,
     suppress_callback_exceptions=True,
@@ -55,6 +109,7 @@ app = Dash(
 app.title = "DNAm Age Prediction"
 
 metrics_data, preds_data, annot_data = load_results()
+cv_results_data = load_cv_results()
 
 model_options = []
 default_model = None
@@ -438,6 +493,47 @@ app.layout = html.Div(
                                         # Summary Statistics
                                         html.Div(className="section-title", children="Résumé Statistique"),
                                         html.Div(id="clinical-summary", className="clinical-summary-grid"),
+                                    ],
+                                ),
+
+                                # ── Résultats 5-Fold CV ──────────────────────────────────────
+                                dcc.Tab(
+                                    label="5-Fold CV",
+                                    value="tab-cv",
+                                    className="tab",
+                                    selected_className="tab-selected",
+                                    children=[
+                                        html.Div(className="clinical-intro", children=[
+                                            html.H2("Comparaison par Validation Croisée 5-Fold"),
+                                            html.P(
+                                                "Tous les modèles sont évalués en 5-Fold CV strict : "
+                                                "sélection de features, imputation MICE et entraînement "
+                                                "sur train uniquement à chaque fold. "
+                                                "Les intervalles de confiance sont à 95% (t-Student, df=4)."
+                                            ),
+                                        ]),
+                                        html.Div(className="section-title", children="MAE ± IC 95% (5-Fold CV)"),
+                                        html.Div(className="grid grid-single", children=[
+                                            html.Div(
+                                                dcc.Loading(
+                                                    dcc.Graph(id="chart-cv-mae"),
+                                                    type="circle", color="var(--primary)"
+                                                ),
+                                                className="card",
+                                            ),
+                                        ]),
+                                        html.Div(className="section-title", children="R² ± IC 95% (5-Fold CV)"),
+                                        html.Div(className="grid grid-single", children=[
+                                            html.Div(
+                                                dcc.Loading(
+                                                    dcc.Graph(id="chart-cv-r2"),
+                                                    type="circle", color="var(--primary)"
+                                                ),
+                                                className="card",
+                                            ),
+                                        ]),
+                                        html.Div(className="section-title", children="Tableau récapitulatif"),
+                                        html.Div(id="cv-results-table", className="card", style={"padding": "1rem"}),
                                     ],
                                 ),
 
@@ -1624,6 +1720,144 @@ def update_clinical_analysis(model_name):
     ])
 
     return fig_ba, fig_calib, fig_qq, fig_resid, ba_stats, calib_stats, summary
+
+
+@app.callback(
+    Output("chart-cv-mae", "figure"),
+    Output("chart-cv-r2", "figure"),
+    Output("cv-results-table", "children"),
+    Input("tabs", "value"),
+)
+def update_cv_results(tab):
+    """Affiche la comparaison 5-Fold CV avec intervalles de confiance."""
+    empty_mae = go.Figure().update_layout(**CHART_LAYOUT, title="Données non disponibles")
+    empty_r2  = go.Figure().update_layout(**CHART_LAYOUT, title="Données non disponibles")
+    no_table  = html.P("Aucune donnée CV disponible.", style={"color": "#94a3b8"})
+
+    if tab != "tab-cv" or cv_results_data is None:
+        return empty_mae, empty_r2, no_table
+
+    df = cv_results_data.copy()
+
+    # Palette de couleurs pour tous les modèles
+    palette = [
+        "#00ffc8", "#f472b6", "#fbbf24", "#60a5fa", "#a78bfa",
+        "#34d399", "#fb923c", "#e879f9", "#22d3ee", "#f97316",
+    ]
+    colors = [
+        MODEL_COLORS.get(m, palette[i % len(palette)])
+        for i, m in enumerate(df["model"])
+    ]
+
+    # ── MAE bar chart ──────────────────────────────────────────────────
+    fig_mae = go.Figure()
+    fig_mae.add_trace(go.Bar(
+        x=df["model"],
+        y=df["mae_mean"],
+        error_y=dict(type="data", array=df["mae_ci95"].fillna(0).tolist(), visible=True,
+                     color="rgba(255,255,255,0.6)", thickness=2, width=6),
+        marker_color=colors,
+        marker_line_width=0,
+        text=[f"{v:.2f}" for v in df["mae_mean"]],
+        textposition="outside",
+        textfont=dict(size=12, color="#f1f5f9"),
+        hovertemplate="<b>%{x}</b><br>MAE = %{y:.3f} ± %{error_y.array:.3f}<extra></extra>",
+    ))
+    fig_mae.update_layout(
+        **CHART_LAYOUT,
+        title="MAE ± IC 95% (5-Fold CV, sans data leakage)",
+        xaxis_title="Modèle",
+        yaxis_title="MAE (années)",
+        showlegend=False,
+        bargap=0.35,
+    )
+    fig_mae.update_xaxes(tickangle=-20)
+    # Ligne du meilleur MAE
+    best_mae = df["mae_mean"].min()
+    fig_mae.add_hline(
+        y=best_mae, line_dash="dot", line_color="#00ffc8", line_width=1.5,
+        annotation_text=f"Meilleur : {best_mae:.2f}", annotation_position="top right",
+        annotation_font_color="#00ffc8",
+    )
+
+    # ── R² bar chart ───────────────────────────────────────────────────
+    df_r2 = df.sort_values("r2_mean", ascending=False)
+    colors_r2 = [
+        MODEL_COLORS.get(m, palette[i % len(palette)])
+        for i, m in enumerate(df_r2["model"])
+    ]
+    fig_r2 = go.Figure()
+    fig_r2.add_trace(go.Bar(
+        x=df_r2["model"],
+        y=df_r2["r2_mean"],
+        error_y=dict(type="data", array=df_r2["r2_ci95"].fillna(0).tolist(), visible=True,
+                     color="rgba(255,255,255,0.6)", thickness=2, width=6),
+        marker_color=colors_r2,
+        marker_line_width=0,
+        text=[f"{v:.3f}" for v in df_r2["r2_mean"]],
+        textposition="outside",
+        textfont=dict(size=12, color="#f1f5f9"),
+        hovertemplate="<b>%{x}</b><br>R² = %{y:.4f} ± %{error_y.array:.4f}<extra></extra>",
+    ))
+    fig_r2.update_layout(
+        **CHART_LAYOUT,
+        title="R² ± IC 95% (5-Fold CV, sans data leakage)",
+        xaxis_title="Modèle",
+        yaxis_title="R²",
+        showlegend=False,
+        bargap=0.35,
+    )
+    fig_r2.update_yaxes(range=[max(0, df_r2["r2_mean"].min() - 0.05), 1.0])
+    fig_r2.update_xaxes(tickangle=-20)
+
+    # ── Tableau récapitulatif ──────────────────────────────────────────
+    table_header = html.Thead(html.Tr([
+        html.Th("Rang", style={"width": "60px"}),
+        html.Th("Modèle"),
+        html.Th("MAE moyen"),
+        html.Th("IC 95% MAE"),
+        html.Th("R² moyen"),
+        html.Th("IC 95% R²"),
+    ], style={"color": "#94a3b8", "fontSize": "0.8rem", "textTransform": "uppercase",
+              "letterSpacing": "0.05em", "borderBottom": "1px solid rgba(148,163,184,0.2)"}))
+
+    table_rows = []
+    for rank, (_, row) in enumerate(df.iterrows(), start=1):
+        is_best = rank == 1
+        row_style = {"background": "rgba(0,255,200,0.05)"} if is_best else {}
+        table_rows.append(html.Tr([
+            html.Td(f"#{rank}", style={"color": "#00ffc8" if is_best else "#64748b",
+                                        "fontWeight": "bold" if is_best else "normal"}),
+            html.Td(html.Span([
+                "★ " if is_best else "",
+                row["model"],
+            ]), style={"fontWeight": "bold" if is_best else "normal",
+                       "color": "#f1f5f9" if is_best else "#cbd5e1"}),
+            html.Td(f"{row['mae_mean']:.3f} ans",
+                    style={"color": "#00ffc8" if is_best else "#cbd5e1", "fontWeight": "bold" if is_best else "normal"}),
+            html.Td(f"± {row['mae_ci95']:.3f}" if pd.notna(row.get("mae_ci95")) else "—",
+                    style={"color": "#64748b"}),
+            html.Td(f"{row['r2_mean']:.4f}",
+                    style={"color": "#cbd5e1"}),
+            html.Td(f"± {row['r2_ci95']:.4f}" if pd.notna(row.get("r2_ci95")) else "—",
+                    style={"color": "#64748b"}),
+        ], style=row_style))
+
+    table = html.Table(
+        [table_header, html.Tbody(table_rows)],
+        style={
+            "width": "100%", "borderCollapse": "collapse", "fontSize": "0.9rem",
+            "fontFamily": "Inter, monospace",
+        },
+    )
+
+    note = html.P(
+        "Protocole : sélection top-500 CpG (corrélation, train only) → MICE (fit train) "
+        "→ StandardScaler (fit train) → modèle. Aucun leakage vers le test.",
+        style={"color": "#64748b", "fontSize": "0.8rem", "marginTop": "1rem"},
+    )
+
+    return fig_mae, fig_r2, html.Div([table, note])
 
 
 @app.callback(

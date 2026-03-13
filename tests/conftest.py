@@ -86,7 +86,7 @@ def temp_data_dir(tmp_path):
 @pytest.fixture
 def sample_config():
     """Create sample configuration for testing."""
-    from src.utils.config import Config, DataConfig, ModelConfig, OptimizationConfig
+    import Config, DataConfig, ModelConfig, OptimizationConfig
 
     return Config(
         data=DataConfig(

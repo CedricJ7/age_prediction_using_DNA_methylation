@@ -1,352 +1,108 @@
+#!/usr/bin/env python3
 """
-Train age prediction models using modular architecture.
-
-This is the refactored entry point that uses the new src/ modules.
+Entraînement final du modèle sans Data Leakage.
+==============================================
+Utilise les données brutes et effectue le split AVANT l'imputation et la sélection.
 """
-
-import sys
-from pathlib import Path
-
-# Add project root to Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 import argparse
-import time
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
 import joblib
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import ElasticNet
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.pipeline import Pipeline
 
-# Import from new modular structure
-from src.utils.config import Config
-from src.utils.logging_config import setup_logger
-from src.data.data_loader import load_annotations, load_cpg_names, load_selected_cpgs
-from src.features.selection import select_top_k_cpgs
-from src.features.demographic import add_demographic_features
-from src.data.imputation import create_knn_imputer
-from src.models.linear_models import create_ridge_model, create_lasso_model, create_elasticnet_model
-from src.models.tree_models import create_random_forest_model, create_xgboost_model
-from src.models.neural_models import create_mlp_model
-from src.models.deep_learning import create_deepmage_model
-from src.models.ensemble import create_stacked_ensemble
-from src.evaluation.metrics import evaluate_model, compare_models
+def get_top_features(data_path, train_ids, y_train, n_var=10000, n_corr=2000):
+    """Sélection de features sur le train uniquement."""
+    print(f"Sélection des {n_corr} meilleures features sur le train...")
+    y_c = y_train - y_train.mean()
+    y_den = np.sqrt(np.sum(y_c ** 2))
+    
+    vars_list = []
+    corrs_list = []
+    
+    for chunk in pd.read_csv(data_path, usecols=train_ids, chunksize=5000):
+        X_chunk = chunk.to_numpy(dtype=np.float32).T
+        vars_list.append(np.nanvar(X_chunk, axis=0))
+        # Imputation rapide pour calcul de corrélation
+        X_tmp = np.nan_to_num(X_chunk, nan=np.nanmean(X_chunk, axis=0))
+        x_c = X_tmp - X_tmp.mean(axis=0, keepdims=True)
+        num = x_c.T @ y_c
+        den = np.sqrt(np.sum(x_c ** 2, axis=0)) * y_den
+        corrs_list.append(np.abs(np.divide(num, den, out=np.zeros_like(num), where=den != 0)))
+        
+    idx_var = np.argsort(np.concatenate(vars_list))[::-1][:n_var]
+    corrs = np.concatenate(corrs_list)
+    idx_corr = idx_var[np.argsort(corrs[idx_var])[::-1][:n_corr]]
+    return np.sort(idx_corr)
 
-logger = setup_logger(__name__)
-
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Train DNA methylation age prediction models"
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path("config/model_config.yaml"),
-        help="Path to configuration file"
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("results"),
-        help="Directory for output files"
-    )
-    parser.add_argument(
-        "--ensemble",
-        action="store_true",
-        help="Train stacked ensemble in addition to individual models"
-    )
-    return parser.parse_args()
-
+def load_matrix(data_path, sample_ids, indices):
+    rows = []
+    start = 0
+    indices_to_load = np.sort(indices)
+    for chunk in pd.read_csv(data_path, usecols=sample_ids, chunksize=10000):
+        end = start + len(chunk)
+        pos_s = np.searchsorted(indices_to_load, start)
+        pos_e = np.searchsorted(indices_to_load, end)
+        local = indices_to_load[pos_s:pos_e] - start
+        if len(local) > 0:
+            rows.append(chunk.iloc[local].values)
+        start = end
+    return np.vstack(rows).T.astype(np.float32)
 
 def main():
-    """Main training pipeline."""
-    args = parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data-dir', type=Path, default=Path('Data'))
+    parser.add_argument('--output', type=Path, default=Path('results/models/best_model_robust.joblib'))
+    args = parser.parse_args()
 
-    logger.info("=" * 80)
-    logger.info("DNA METHYLATION AGE PREDICTION - TRAINING PIPELINE")
-    logger.info("=" * 80)
+    # 1. Chargement annotations et IDs
+    annot = pd.read_csv(args.data_dir / "annot_projet.csv").dropna(subset=["age", "Sample_description"])
+    annot["Sample_description"] = annot["Sample_description"].astype(str)
+    annot = annot.set_index("Sample_description")
+    
+    raw_path = args.data_dir / "c_sample.csv"
+    sample_header = pd.read_csv(raw_path, nrows=0)
+    common_ids = [s for s in sample_header.columns if s in annot.index]
+    y = annot.loc[common_ids, "age"].values.astype(np.float32)
 
-    # Load configuration
-    if args.config.exists():
-        config = Config.from_yaml(args.config)
-        logger.info(f"Loaded configuration from {args.config}")
-    else:
-        config = Config()
-        logger.info("Using default configuration")
-
-    # Override output directory
-    config.output_dir = args.output_dir
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Convert data_dir to Path for consistency
-    data_dir = Path(config.data.data_dir)
-
-    # =========================================================================
-    # PHASE 1: DATA LOADING
-    # =========================================================================
-    logger.info("\n" + "=" * 80)
-    logger.info("PHASE 1: DATA LOADING")
-    logger.info("=" * 80)
-
-    # Load annotations
-    annot = load_annotations(data_dir)
-    logger.info(f"Loaded {len(annot)} samples")
-
-    # Extract target variable
-    y = annot["age"].values
-    sample_ids = annot.index.tolist()
-
-    logger.info(f"Age range: {y.min():.1f} - {y.max():.1f} years (mean: {y.mean():.1f})")
-
-    # Load CpG names
-    cpg_names = load_cpg_names(data_dir)
-    logger.info(f"Total CpG sites: {len(cpg_names)}")
-
-    # =========================================================================
-    # PHASE 2: FEATURE SELECTION
-    # =========================================================================
-    logger.info("\n" + "=" * 80)
-    logger.info("PHASE 2: FEATURE SELECTION")
-    logger.info("=" * 80)
-
-    data_path = data_dir / "c_sample.csv"
-
-    logger.info(f"Selecting top {config.data.top_k_features} CpG sites...")
-    selected_indices, selected_names = select_top_k_cpgs(
-        data_path=data_path,
-        sample_ids=sample_ids,
-        y=y,
-        cpg_names=cpg_names,
-        top_k=config.data.top_k_features,
-        chunk_size=config.data.chunk_size,
+    # 2. Split AVANT toute transformation
+    X_ids_train, X_ids_test, y_train, y_test = train_test_split(
+        common_ids, y, test_size=0.2, random_state=42
     )
 
-    logger.info(f"Selected {len(selected_indices)} CpG sites")
+    # 3. Sélection de features sur Train
+    top_idx = get_top_features(raw_path, X_ids_train, y_train)
+    
+    # 4. Chargement des matrices
+    X_train = load_matrix(raw_path, X_ids_train, top_idx)
+    X_test = load_matrix(raw_path, X_ids_test, top_idx)
 
-    # Load selected CpG data
-    logger.info("Loading selected CpG methylation data...")
-    cpg_matrix = load_selected_cpgs(
-        data_path=data_path,
-        sample_ids=sample_ids,
-        selected_indices=selected_indices,
-        selected_names=selected_names,
-        chunk_size=config.data.chunk_size,
-    )
+    # 5. Pipeline d'entraînement
+    # On utilise SimpleImputer ici, mais on pourrait utiliser MICE avec les paramètres optimisés
+    pipeline = Pipeline([
+        ('imputer', SimpleImputer(strategy='mean')),
+        ('scaler', StandardScaler()),
+        ('model', ElasticNet(alpha=0.01, l1_ratio=0.5, random_state=42))
+    ])
 
-    cpg_matrix = cpg_matrix.T  # Transpose to samples x features
-    logger.info(f"CpG matrix shape: {cpg_matrix.shape}")
+    print("Entraînement du modèle...")
+    pipeline.fit(X_train, y_train)
+    
+    # 6. Évaluation
+    preds = pipeline.predict(X_test)
+    print(f"MAE sur Test: {mean_absolute_error(y_test, preds):.4f}")
+    print(f"R2 sur Test: {r2_score(y_test, preds):.4f}")
 
-    # =========================================================================
-    # PHASE 3: DATA PREPROCESSING
-    # =========================================================================
-    logger.info("\n" + "=" * 80)
-    logger.info("PHASE 3: DATA PREPROCESSING")
-    logger.info("=" * 80)
-
-    # Add demographic features
-    demo_features = add_demographic_features(annot)
-    logger.info(f"Demographic features shape: {demo_features.shape}")
-
-    # Combine CpG and demographic features
-    X = pd.concat([cpg_matrix, demo_features], axis=1)
-    logger.info(f"Combined feature matrix shape: {X.shape}")
-
-    # Impute missing values
-    logger.info("Imputing missing values...")
-    imputer = create_knn_imputer(n_neighbors=5)
-    X_imputed = imputer.fit_transform(X)
-    X = pd.DataFrame(X_imputed, index=X.index, columns=X.columns)
-
-    # Train-test split
-    logger.info(f"Splitting data (test_size={config.data.test_size})...")
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=config.data.test_size,
-        random_state=config.optimization.random_state
-    )
-
-    logger.info(f"Train: {len(X_train)} samples, Test: {len(X_test)} samples")
-
-    # =========================================================================
-    # PHASE 4: MODEL TRAINING
-    # =========================================================================
-    logger.info("\n" + "=" * 80)
-    logger.info("PHASE 4: MODEL TRAINING")
-    logger.info("=" * 80)
-
-    models = []
-    results = []
-
-    # Define models to train
-    model_definitions = [
-        ("Ridge", lambda: create_ridge_model(config.models)),
-        ("Lasso", lambda: create_lasso_model(config.models)),
-        ("ElasticNet", lambda: create_elasticnet_model(config.models)),
-        ("RandomForest", lambda: create_random_forest_model(config.models)),
-        ("AltumAge", lambda: create_mlp_model(config.models)),
-    ]
-
-    # Add XGBoost if available
-    try:
-        model_definitions.append(
-            ("XGBoost", lambda: create_xgboost_model(config.models))
-        )
-    except ImportError:
-        logger.warning("XGBoost not available, skipping")
-
-    # Add DeepMAge (PyTorch)
-    try:
-        model_definitions.append(
-            ("DeepMAge", lambda: create_deepmage_model(config.models))
-        )
-    except ImportError as e:
-        logger.warning(f"DeepMAge not available (PyTorch required): {e}")
-
-    # Train each model
-    for name, model_factory in model_definitions:
-        logger.info(f"\n{'─' * 80}")
-        logger.info(f"Training {name}...")
-        logger.info(f"{'─' * 80}")
-
-        start_time = time.time()
-
-        try:
-            # Create and train model
-            model = model_factory()
-
-            # Special handling for XGBoost and DeepMAge with early stopping
-            if name in ["XGBoost", "DeepMAge"]:
-                # Split training into train/validation for early stopping
-                from sklearn.model_selection import train_test_split as split_val
-                X_tr, X_val, y_tr, y_val = split_val(
-                    X_train, y_train, test_size=0.15, random_state=42
-                )
-
-                logger.info(f"Using validation set: train={len(X_tr)}, val={len(X_val)}")
-
-                # Fit with evaluation set for early stopping
-                model.fit(
-                    X_tr, y_tr,
-                    eval_set=[(X_val, y_val)],
-                    verbose=False
-                )
-
-                if hasattr(model, 'best_iteration'):
-                    max_iter = config.models.xgboost_n_estimators if name == "XGBoost" else config.models.deepmage_epochs
-                    logger.info(f"Early stopping at iteration {model.best_iteration} "
-                              f"(out of {max_iter})")
-            else:
-                # Standard fit for other models
-                model.fit(X_train, y_train)
-
-            # Evaluate
-            metrics = evaluate_model(
-                model, X_train, X_test, y_train, y_test,
-                cv=config.optimization.cv_folds
-            )
-
-            fit_time = time.time() - start_time
-
-            # Save model
-            model_path = config.output_dir / f"models/{name.lower()}.joblib"
-            model_path.parent.mkdir(parents=True, exist_ok=True)
-            joblib.dump(model, model_path)
-            logger.info(f"Model saved to {model_path}")
-
-            # Store results
-            models.append((name, model))
-            results.append({
-                "model": name,
-                "fit_time_sec": fit_time,
-                "n_features": X_train.shape[1],
-                "n_train": len(X_train),
-                "n_test": len(X_test),
-                **metrics
-            })
-
-            logger.info(f"✓ {name} completed in {fit_time:.2f}s")
-
-        except Exception as e:
-            logger.error(f"✗ {name} failed: {e}", exc_info=True)
-
-    # =========================================================================
-    # PHASE 5: ENSEMBLE (Optional)
-    # =========================================================================
-    if args.ensemble and len(models) >= 3:
-        logger.info("\n" + "=" * 80)
-        logger.info("PHASE 5: STACKED ENSEMBLE")
-        logger.info("=" * 80)
-
-        # Select top 3 base learners for ensemble
-        results_df = pd.DataFrame(results)
-        top_models = results_df.nsmallest(3, 'mae')['model'].tolist()
-
-        base_learners = [(name, model) for name, model in models if name in top_models]
-        logger.info(f"Base learners: {[name for name, _ in base_learners]}")
-
-        try:
-            ensemble = create_stacked_ensemble(base_learners, alpha=100.0)
-
-            start_time = time.time()
-            ensemble.fit(X_train, y_train)
-
-            metrics = evaluate_model(
-                ensemble, X_train, X_test, y_train, y_test,
-                cv=config.optimization.cv_folds
-            )
-
-            fit_time = time.time() - start_time
-
-            # Save ensemble
-            ensemble_path = config.output_dir / "models/ensemble.joblib"
-            joblib.dump(ensemble, ensemble_path)
-
-            results.append({
-                "model": "Ensemble",
-                "fit_time_sec": fit_time,
-                "n_features": X_train.shape[1],
-                "n_train": len(X_train),
-                "n_test": len(X_test),
-                **metrics
-            })
-
-            logger.info(f"✓ Ensemble completed in {fit_time:.2f}s")
-
-        except Exception as e:
-            logger.error(f"✗ Ensemble failed: {e}", exc_info=True)
-
-    # =========================================================================
-    # PHASE 6: RESULTS SUMMARY
-    # =========================================================================
-    logger.info("\n" + "=" * 80)
-    logger.info("PHASE 6: RESULTS SUMMARY")
-    logger.info("=" * 80)
-
-    results_df = pd.DataFrame(results)
-
-    # Sort and display
-    comparison = compare_models(results_df)
-
-    # Save results
-    results_path = config.output_dir / "metrics.csv"
-    comparison.to_csv(results_path, index=False)
-    logger.info(f"\n✓ Results saved to {results_path}")
-
-    # Display top 3
-    logger.info("\nTop 3 Models:")
-    for idx, row in comparison.head(3).iterrows():
-        logger.info(
-            f"  {row['rank']}. {row['model']}: "
-            f"MAE={row['mae']:.3f}, R²={row['r2']:.4f}, "
-            f"Overfitting={row['overfitting_ratio']:.2f}x"
-        )
-
-    logger.info("\n" + "=" * 80)
-    logger.info("TRAINING COMPLETE!")
-    logger.info("=" * 80)
-
+    # Sauvegarde
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(pipeline, args.output)
+    print(f"Modèle sauvegardé dans {args.output}")
 
 if __name__ == "__main__":
     main()

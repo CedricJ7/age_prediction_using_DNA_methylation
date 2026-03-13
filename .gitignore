@@ -49,6 +49,8 @@ a_tester.txt
 
 # data
 Data/
+pyaging_data/
 # Large model files
 *.joblib
 results/optimization_complete/
+results/optimization_elasticnet/

@@ -1,0 +1,2 @@
+model,mae_train,mae_test,r2_train,r2_test,target_mae
+StackingRegressor_Optimized,0.6876586695923945,3.534260884800345,0.9962160696125977,0.9295110167539344,2.5

@@ -12,6 +12,7 @@ catboost>=1.2.0  # Categorical boosting
 optuna>=3.0.0  # Hyperparameter optimization
 
 # Visualization
+biolearn
 plotly>=5.18.0
 dash>=2.14.0
 matplotlib>=3.8.0

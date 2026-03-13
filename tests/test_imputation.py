@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from sklearn.impute import KNNImputer
 
-from src.data.imputation import (
+import (
     get_available_imputers,
     impute_data,
     create_knn_imputer
